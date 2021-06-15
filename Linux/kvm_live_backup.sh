@@ -1,5 +1,6 @@
 #!/bin/bash
 backup_dir=/KVM/backup
+keep_day=7
 # Список работающих VM
 vm_list=`virsh list | grep running | awk '{print $2}'`
 # Список VM, заданных вручную, через пробел
@@ -42,7 +43,7 @@ for activevm in $vm_list
         echo "`date +"%Y-%m-%d_%H-%M-%S"` End backup $activevm" >> $logfile
     done
 
-/usr/bin/find $backup_dir -type f -mtime +7 -exec rm -rf {} \;
+/usr/bin/find $backup_dir -type f -mtime +${keep_day} -exec rm -rf {} \;
 
 #
 # Сжать файл file.ext в /tmp/file.ext.gz с сохранением (-k) оригинального файла:
