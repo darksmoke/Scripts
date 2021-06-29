@@ -4,9 +4,9 @@
 #
 backup_dir=/KVM/backup
 # Список работающих VM
-#vm_list=`virsh list | grep running | awk '{print $2}'`
+vm_list=`virsh list | grep running | awk '{print $2}'`
 # Список VM, заданных вручную, через пробел
-vm_list=(interovoshi_files_win2008r2)
+#vm_list=(vm1 vm2)
 # Лог файл
 logfile="/var/log/kvmbackup.log"
 keep_days=10
