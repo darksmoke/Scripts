@@ -6,7 +6,7 @@ backup_dir=/KVM/backup
 # Список работающих VM
 vm_list=`virsh list | grep running | awk '{print $2}'`
 # Список VM, заданных вручную, через пробел
-#vm_list=(vm1 vm2)
+v#m_list="vm_name1 vm_name2"
 # Лог файл
 logfile="/var/log/kvmbackup.log"
 keep_days=10
@@ -48,10 +48,10 @@ do
 
             virsh blockcommit $activevm $disk --active --verbose --pivot
 
-    	    if [ $? -eq 0 ]; then
+	    if [ $? -eq 0 ]; then
                 echo "`date +"%Y-%m-%d_%H-%M-%S"` Delete snapshot $activevm $snap_path" >> $logfile
                 rm $snap_path
-                echo "`date +"%Y-%m-%d_%H-%M-%S"` End backup $activevm \n" >> $logfile
+                echo -e "`date +"%Y-%m-%d_%H-%M-%S"` End backup $activevm \n" >> $logfile
             else
               i=$(( i+1 ))
               echo "`date +"%Y-%m-%d_%H-%M-%S"` PROBLEM 1! $activevm" >> $logfile
@@ -59,12 +59,12 @@ do
 
         done
     else
-    	i=$(( i+1 ))
-    	echo "`date +"%Y-%m-%d_%H-%M-%S"` PROBLEM 2! $activevm $snap_path" >> $logfile
+	i=$(( i+1 ))
+	echo "`date +"%Y-%m-%d_%H-%M-%S"` PROBLEM 2! $activevm $snap_path" >> $logfile
     fi
 
     if [ $i -gt 0 ]; then
-        echo "`date +"%Y-%m-%d_%H-%M-%S"` COUNT PROBLEMS = $i \n" >> $logfile
+        echo -e "`date +"%Y-%m-%d_%H-%M-%S"` COUNT PROBLEMS = $i \n" >> $logfile
     fi
 done
 
