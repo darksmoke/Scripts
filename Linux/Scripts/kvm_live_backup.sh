@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ver. 0.1
+# ver. 0.3
 #
 backup_dir=/KVM/backup
 # Список работающих VM
@@ -59,8 +59,8 @@ do
 
         done
     else
-	i=$(( i+1 ))
-	echo "`date +"%Y-%m-%d_%H-%M-%S"` PROBLEM 2! $activevm $snap_path" >> $logfile
+      i=$(( i+1 ))
+      echo "`date +"%Y-%m-%d_%H-%M-%S"` PROBLEM 2! $activevm $snap_path" >> $logfile
     fi
 
     if [ $i -gt 0 ]; then
@@ -69,7 +69,9 @@ do
 done
 
 if [ $i -eq 0 ]; then
+  if [ $(ls *.gz $backup_dir | wc -l) -ge 2 ]; then
     /usr/bin/find $backup_dir -type f -mtime +${keep_days} -exec rm -rf {} \;
+  fi
 fi
 
 #
