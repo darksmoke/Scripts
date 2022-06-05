@@ -6,7 +6,7 @@ backup_dir=/KVM/backup
 # Список работающих VM
 vm_list=`virsh list | grep running | awk '{print $2}'`
 # Список VM, заданных вручную, через пробел
-v#m_list="vm_name1 vm_name2"
+#vm_list="vm_name1 vm_name2"
 # Лог файл
 logfile="/var/log/kvmbackup.log"
 keep_days=10
