@@ -2,13 +2,12 @@ import pysftp
 import re
 import os
 import requests
-from secrets import password
-from secrets import api_key
+from secrets import *
 
 
-hostname = "u334286.your-storagebox.de"
-username = "u334286"
-password = password
+username = hatzner_username
+password = hatzner_password
+hostname = hatzner_username + ".your-storagebox.de"
 
 path_backup_dir = "/Users/aleksejsidorin"
 
@@ -38,14 +37,11 @@ def upload_file():
 
 
 with pysftp.Connection(hostname, username=username, password=password) as sftp:
-    print("Список файлов на удаленном севрере")
     all_files = sftp.listdir()
 
     arch_data = list()
     for item in get_files(all_files):
         arch_data += re.findall(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', item)
-
-    print(len(arch_data))
 
     small_data = arch_data[0] if arch_data else None
 
@@ -56,10 +52,8 @@ with pysftp.Connection(hostname, username=username, password=password) as sftp:
                 small_data = item
 
         sftp.remove(prefix + small_data + file_extension)
-        print("удаляем файл")
 
     # Загружаем новый файл
-    print("Загружаем файл")
     local_files = os.listdir(path_backup_dir)
 
     for item in get_files(local_files):
@@ -75,9 +69,6 @@ with pysftp.Connection(hostname, username=username, password=password) as sftp:
 
     sftp.put(path_backup_dir + '/' + prefix + small_data + file_extension, preserve_mtime=True)
 
-    for item in sftp.listdir():
-        print(item)
-
     file_attr = str(sftp.stat(prefix + small_data + file_extension))
     size_remoute_file = int(file_attr.split()[4])
 
@@ -89,7 +80,6 @@ with pysftp.Connection(hostname, username=username, password=password) as sftp:
 
 url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
 requests.get(url).json()
-# print(requests.get(url).json()) # this sends the message
 
 # Get info
 # url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
