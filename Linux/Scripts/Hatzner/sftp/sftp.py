@@ -9,7 +9,7 @@ username = hatzner_username
 password = hatzner_password
 hostname = hatzner_username + ".your-storagebox.de"
 
-path_backup_dir = "/Users/aleksejsidorin"
+path_backup_dir = "/tank/backup"
 
 prefix = "samba_"  # samba_2023-01-20.zip
 file_extension = ".zip"
@@ -43,7 +43,7 @@ with pysftp.Connection(hostname, username=username, password=password) as sftp:
     for item in get_files(all_files):
         arch_data += re.findall(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', item)
 
-    small_data = arch_data[0] if arch_data else None
+    small_data = arch_data[0] if arch_data else "1000-01-01"
 
     if len(arch_data) >= 4:
         # Найти самый старый файл и удалить
@@ -73,13 +73,20 @@ with pysftp.Connection(hostname, username=username, password=password) as sftp:
     size_remoute_file = int(file_attr.split()[4])
 
     if size_remoute_file == size_local_file:
-        message = "Файл загрузился успешно."
+        message = f"Файл, {prefix + small_data + file_extension}, загрузился успешно."
     else:
         message = "Рамер файлов не совпадает. Что-то пошло не так..."
 
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
+    requests.get(url).json()
 
-url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
-requests.get(url).json()
+    all_files = sftp.listdir()
+    filies_on_server = get_files(all_files)
+    filies_on_server = '\n'.join(filies_on_server)
+
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text=Список файлов на сервере:\n{filies_on_server}"
+    requests.get(url).json()
+
 
 # Get info
 # url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
