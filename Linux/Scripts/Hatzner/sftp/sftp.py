@@ -2,8 +2,10 @@ import pysftp
 import re
 import os
 import requests
+import time
 from secrets import *
 
+start_time = time.time()
 
 username = hatzner_username
 password = hatzner_password
@@ -87,6 +89,10 @@ with pysftp.Connection(hostname, username=username, password=password) as sftp:
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text=Список файлов на сервере:\n{filies_on_server}"
     requests.get(url).json()
 
+
+time_format = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
+url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text=Скрипт выполнянлся: {time_format}"
+requests.get(url).json()
 
 # Get info
 # url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
