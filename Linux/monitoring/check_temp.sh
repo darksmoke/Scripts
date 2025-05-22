@@ -1,14 +1,22 @@
 #!/bin/bash
-CONFIG_FILE="config.ini"
-source send_telegram.sh
+# v2
 
-THRESHOLD=75
+# Файл конфигурации
+source "$(dirname "$0")/config.ini"
 
-TEMP=$(sensors | grep -E 'Core 0|Package id 0' | head -n 1 | grep -oE '[0-9]+\.[0-9]+' | cut -d. -f1)
+WARNING_TEMP=80
+CRITICAL_TEMP=100
 
-if [[ $TEMP -gt $THRESHOLD ]]; then
-  HOST=$(hostname)
-  TIME=$(date '+%Y-%m-%d %H:%M:%S')
-  MSG="🔥 *$HOST*\n🕒 $TIME\nТемпература CPU: ${TEMP}°C"
-  send_telegram "$MSG"
-fi
+# Получаем только текущие температуры (первая встречающаяся температура в строке)
+TEMPS=$(sensors | grep -oP ':\s+\+\K[0-9.]+(?=°C)' )
+
+for TEMP in $TEMPS; do
+    TEMP_INT=${TEMP%.*}  # убираем дробную часть
+    if [[ "$TEMP_INT" -ge $CRITICAL_TEMP ]]; then
+        MESSAGE="🔥 CRITICAL: Temperature is ${TEMP}°C"
+        bash "$(dirname "$0")/send_telegram.sh" "$MESSAGE"
+    elif [[ "$TEMP_INT" -ge $WARNING_TEMP ]]; then
+        MESSAGE="⚠️ WARNING: Temperature is ${TEMP}°C"
+        bash "$(dirname "$0")/send_telegram.sh" "$MESSAGE"
+    fi
+done
