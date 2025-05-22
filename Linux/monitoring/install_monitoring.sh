@@ -1,73 +1,66 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# --- install_monitoring.sh ---
+set -e
 
-# ==== Настройки ====
-REPO_URL="https://github.com/darksmoke/Scripts/blob/main/Linux/monitoring/install_monitoring.sh"
-INSTALL_DIR="${1:-/root/scripts/monitoring}"                    # путь по умолчанию или из аргумента
-BRANCH="main"  # или укажи ветку, если надо
+# *** Настраиваемые переменные ***
+INSTALL_DIR="${1:-/root/scripts/monitoring}"
+RAW_BASE="https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring"
+FILES=(check_disk.sh check_ram.sh check_cpu.sh check_iowait.sh \
+       check_uptime.sh check_raid.sh check_temp.sh check_swap.sh \
+       check_smart.sh send_telegram.sh)
 
-echo "📁 Установка в: $INSTALL_DIR"
+echo "📁 Target directory: $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
+cd "$INSTALL_DIR"
 
-# ==== Установка зависимостей ====
-echo "📦 Установка зависимостей..."
-apt update -y && apt install -y curl wget git smartmontools lm-sensors util-linux grep gawk mdadm
+echo "📦 Installing required packages..."
+apt update -y
+apt install -y curl wget git smartmontools lm-sensors util-linux mdadm bc sysstat
 
-# ==== Клонирование репозитория ====
-echo "📥 Клонируем репозиторий..."
-if [[ -d "$INSTALL_DIR/.git" ]]; then
-  echo "🔄 Обновляем существующий репозиторий..."
-  git -C "$INSTALL_DIR" pull
-else
-  git clone -b "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
-fi
-
-# ==== Проверка config.ini ====
-if [[ ! -f "$INSTALL_DIR/config.ini" ]]; then
-  echo "⚠️ ВНИМАНИЕ: файл config.ini не найден в $INSTALL_DIR"
-  echo "Создайте его вручную с параметрами:"
-  echo "TOKEN=..."
-  echo "CHAT_ID=..."
-  exit 1
-fi
-
-# ==== Регистрация crontab ====
-echo "🕒 Настраиваем CRON..."
-
-CRON_CONTENT=$(cat <<EOF
-*/5 * * * * bash $INSTALL_DIR/check_disk.sh
-*/5 * * * * bash $INSTALL_DIR/check_ram.sh
-*/5 * * * * bash $INSTALL_DIR/check_cpu.sh
-*/5 * * * * bash $INSTALL_DIR/check_iowait.sh
-*/5 * * * * bash $INSTALL_DIR/check_uptime.sh
-*/10 * * * * bash $INSTALL_DIR/check_raid.sh
-*/5 * * * * bash $INSTALL_DIR/check_temp.sh
-*/5 * * * * bash $INSTALL_DIR/check_swap.sh
-*/60 * * * * bash $INSTALL_DIR/check_smart.sh
-EOF
-)
-
-
-for SCRIPT in check_disk.sh check_ram.sh check_cpu.sh check_iowait.sh check_uptime.sh check_raid.sh check_temp.sh check_swap.sh check_smart.sh; do
-  SCRIPT_PATH="$INSTALL_DIR/$SCRIPT"
-  case $SCRIPT in
-    check_smart.sh)     INTERVAL="60 * * * *" ;;
-    check_raid.sh)      INTERVAL="*/10 * * * *" ;;
-    *)                  INTERVAL="*/5 * * * *" ;;
-  esac
-  CRON_LINE="$INTERVAL bash $SCRIPT_PATH"
-  crontab -l 2>/dev/null | grep -F "$SCRIPT_PATH" >/dev/null || (
-    echo "$CRON_LINE" >> /tmp/new_cron
-  )
+echo "⬇️  Downloading monitoring scripts..."
+for f in "${FILES[@]}"; do
+  echo "   - $f"
+  curl -fsSL "$RAW_BASE/$f" -o "$f"
+  chmod +x "$f"
 done
 
-# Обновляем crontab, если есть новые строки
-if [[ -f /tmp/new_cron ]]; then
-  (crontab -l 2>/dev/null; cat /tmp/new_cron) | crontab -
-  rm /tmp/new_cron
-  echo "✅ Добавлены новые cron-задачи."
-else
-  echo "✔️ Cron уже настроен. Новых записей не требуется."
+# config.ini шаблон — создаём, если нет
+if [[ ! -f config.ini ]]; then
+  cat > config.ini <<EOF
+TOKEN=
+CHAT_ID=
+EOF
+  echo "⚠️  Fill your Telegram TOKEN and CHAT_ID in $INSTALL_DIR/config.ini"
 fi
 
+# ----------  CRON  ----------
+echo "🕒 Configuring cron jobs..."
 
-echo "✅ Установка завершена."
+declare -A PERIOD
+PERIOD[check_smart.sh]="60 * * * *"
+PERIOD[check_raid.sh]="*/10 * * * *"
+PERIOD[check_temp.sh]="*/10 * * * *"
+# остальные по 5 мин
+for s in check_disk.sh check_ram.sh check_cpu.sh check_iowait.sh check_uptime.sh check_swap.sh; do
+  PERIOD[$s]="*/5 * * * *"
+done
+
+# Сохраняем текущий crontab
+crontab -l 2>/dev/null > /tmp/cron_backup.$$ || true
+
+# Добавляем недостающие строки
+UPDATED=0
+for script in "${FILES[@]}"; do
+  [[ $script == send_telegram.sh ]] && continue
+  ENTRY="${PERIOD[$script]} bash $INSTALL_DIR/$script"
+  grep -F "$ENTRY" /tmp/cron_backup.$$ >/dev/null || {
+    echo "$ENTRY" >> /tmp/cron_backup.$$
+    UPDATED=1
+  }
+done
+
+[[ $UPDATED -eq 1 ]] && crontab /tmp/cron_backup.$$
+
+rm /tmp/cron_backup.$$     # чистим за собой
+
+echo "✅ Installation complete."
