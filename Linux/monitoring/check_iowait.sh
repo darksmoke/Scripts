@@ -1,13 +1,20 @@
 #!/bin/bash
+
 CONFIG_FILE="config.ini"
-source send_telegram.sh
+source "$(dirname "$0")/send_telegram.sh"
 
-THRESHOLD=10
-IOWAIT=$(iostat -c 1 2 | awk '/^ / {print $4}' | tail -1 | cut -d. -f1)
+THRESHOLD=5.0  # Порог в %
 
-if [[ $IOWAIT -gt $THRESHOLD ]]; then
+IOWAIT=$(iostat -c 1 2 | awk '/^ / {io+=$4} END {print io}')
+IOWAIT=${IOWAIT//,/.}  # заменяем запятую на точку
+
+if (( $(echo "$IOWAIT > $THRESHOLD" | bc -l) )); then
   HOST=$(hostname)
   TIME=$(date '+%Y-%m-%d %H:%M:%S')
-  MSG="⚠️ *$HOST*\n🕒 $TIME\nВысокий IO Wait: ${IOWAIT}%"
+
+  MSG="⚠️ *${HOST}*
+🕒 ${TIME}
+Высокий IO wait: *${IOWAIT}%*"
+
   send_telegram "$MSG"
 fi
