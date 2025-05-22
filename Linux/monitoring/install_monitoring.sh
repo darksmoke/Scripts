@@ -33,7 +33,7 @@ for script in "${FILES[@]}"; do
   [[ "$script" == "send_telegram.sh" ]] && continue
 
   case "$script" in
-    check_smart.sh) CRON_EXPR="* */1 * * *" ;;  # 1 раз в час
+    check_smart.sh) CRON_EXPR="0 * * * *" ;;  # 1 раз в час
     *) CRON_EXPR="*/5 * * * *" ;;              # каждые 5 минут
   esac
 
