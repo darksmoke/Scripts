@@ -1,8 +1,8 @@
 #!/bin/bash
-# v2
+# v3
 
-# Файл конфигурации
-source "$(dirname "$0")/config.ini"
+CONFIG_FILE="config.ini"
+source send_telegram.sh
 
 WARNING_TEMP=80
 CRITICAL_TEMP=100
