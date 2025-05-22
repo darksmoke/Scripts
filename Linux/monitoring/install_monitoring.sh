@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==== Настройки ====
-REPO_URL="https://github.com/your-user/monitoring-scripts.git"  # 🔁 ЗАМЕНИ на свой URL
+REPO_URL="https://github.com/darksmoke/Scripts/blob/main/Linux/monitoring/install_monitoring.sh"
 INSTALL_DIR="${1:-/root/scripts/monitoring}"                    # путь по умолчанию или из аргумента
 BRANCH="main"  # или укажи ветку, если надо
 

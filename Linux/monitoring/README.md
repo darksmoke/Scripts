@@ -26,7 +26,7 @@ A set of modular Bash scripts for monitoring critical system health metrics on L
 Run the following command (by default installs into `/root/scripts/monitoring`):
 
 ```bash
-bash <(curl -s https://github.com/darksmoke/Scripts/tree/main/Linux/monitoring/install_monitoring.sh)
+bash <(curl -s https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring/install_monitoring.sh)
 ```
 
 ## ⚙️ Configuration
@@ -86,7 +86,7 @@ Each script is registered to run every 5–60 minutes via `crontab`.
 По умолчанию в `/root/scripts/monitoring`:
 
 ```bash
-bash <(curl -s https://github.com/darksmoke/Scripts/blob/main/Linux/monitoring/install_monitoring.sh)
+bash <(curl -s https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring/install_monitoring.sh)
 ```
 
 ## ⚙️ Настройка
