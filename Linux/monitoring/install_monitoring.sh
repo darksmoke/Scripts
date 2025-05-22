@@ -37,12 +37,12 @@ fi
 echo "🕒 Configuring cron jobs..."
 
 declare -A PERIOD
-PERIOD[check_smart.sh]="60 * * * *"
-PERIOD[check_raid.sh]="*/10 * * * *"
-PERIOD[check_temp.sh]="*/10 * * * *"
+PERIOD[check_smart.sh]="* */1 * * *"
+PERIOD[check_raid.sh]="*/30 * * * *"
+PERIOD[check_temp.sh]="*/30 * * * *"
 # остальные по 5 мин
 for s in check_disk.sh check_ram.sh check_cpu.sh check_iowait.sh check_uptime.sh check_swap.sh; do
-  PERIOD[$s]="*/5 * * * *"
+  PERIOD[$s]="*/10 * * * *"
 done
 
 # Сохраняем текущий crontab
