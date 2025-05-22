@@ -2,8 +2,8 @@
 set -e
 
 # === Конфигурация ===
-CONFIG_FILE="$INSTALL_DIR/config.ini"
 INSTALL_DIR="${1:-/root/scripts/monitoring}"
+CONFIG_FILE="$INSTALL_DIR/config.ini"
 RAW_BASE="https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring"
 FILES=(check_disk.sh check_ram.sh check_cpu.sh check_iowait.sh check_uptime.sh check_raid.sh check_temp.sh check_swap.sh check_smart.sh send_telegram.sh)
 
@@ -37,10 +37,10 @@ fi
 echo "🛠 Updating crontab..."
 TMP_CRON=$(mktemp)
 
-# Получаем текущие задачи и удаляем все, связанные с мониторингом
-crontab -l 2>/dev/null | grep -v "$INSTALL_DIR" > "$TMP_CRON" || true
+# Получаем текущие задачи и удаляем все, связанные с monitoring
+crontab -l 2>/dev/null | grep -v "$INSTALL_DIR" | grep -v "install_monitoring.sh" > "$TMP_CRON" || true
 
-# Добавляем новые задачи, если их ещё нет
+# Добавляем задачи для скриптов
 for script in "${FILES[@]}"; do
   [[ "$script" == "send_telegram.sh" ]] && continue
 
@@ -59,7 +59,16 @@ for script in "${FILES[@]}"; do
   fi
 done
 
-# Обновляем crontab
+# === Добавление автообновления ===
+UPDATE_ENTRY="0 3 * * * bash <(curl -s https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring/install_monitoring.sh)"
+if ! grep -Fq "$UPDATE_ENTRY" "$TMP_CRON"; then
+  echo "$UPDATE_ENTRY" >> "$TMP_CRON"
+  echo "🕒 Added daily auto-update: $UPDATE_ENTRY"
+else
+  echo "✅ Auto-update already scheduled."
+fi
+
+# Установка обновлённого crontab
 crontab "$TMP_CRON"
 rm "$TMP_CRON"
 echo "✅ Installation and crontab update complete."
