@@ -1,4 +1,5 @@
 #!/bin/bash
+# v2
 
 CONFIG_FILE="config.ini"
 source "$(dirname "$0")/send_telegram.sh"
