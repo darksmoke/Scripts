@@ -1,13 +1,10 @@
-#!/usr/bin/env bash
-# --- install_monitoring.sh ---
+#!/bin/bash
 set -e
 
-# *** Настраиваемые переменные ***
+# === Конфигурация ===
 INSTALL_DIR="${1:-/root/scripts/monitoring}"
 RAW_BASE="https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring"
-FILES=(check_disk.sh check_ram.sh check_cpu.sh check_iowait.sh \
-       check_uptime.sh check_raid.sh check_temp.sh check_swap.sh \
-       check_smart.sh send_telegram.sh)
+FILES=(check_disk.sh check_ram.sh check_cpu.sh check_iowait.sh check_uptime.sh check_raid.sh check_temp.sh check_swap.sh check_smart.sh send_telegram.sh)
 
 echo "📁 Target directory: $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
@@ -24,43 +21,33 @@ for f in "${FILES[@]}"; do
   chmod +x "$f"
 done
 
-# config.ini шаблон — создаём, если нет
-if [[ ! -f config.ini ]]; then
-  cat > config.ini <<EOF
-TOKEN=
-CHAT_ID=
-EOF
-  echo "⚠️  Fill your Telegram TOKEN and CHAT_ID in $INSTALL_DIR/config.ini"
-fi
+# === Настройка crontab ===
+echo "🛠 Updating crontab..."
+TMP_CRON=$(mktemp)
 
-# ----------  CRON  ----------
-echo "🕒 Configuring cron jobs..."
+# Получаем текущие задачи и удаляем все, связанные с мониторингом
+crontab -l 2>/dev/null | grep -v "$INSTALL_DIR" > "$TMP_CRON" || true
 
-declare -A PERIOD
-PERIOD[check_smart.sh]="* */1 * * *"
-PERIOD[check_raid.sh]="*/30 * * * *"
-PERIOD[check_temp.sh]="*/30 * * * *"
-# остальные по 5 мин
-for s in check_disk.sh check_ram.sh check_cpu.sh check_iowait.sh check_uptime.sh check_swap.sh; do
-  PERIOD[$s]="*/10 * * * *"
-done
-
-# Сохраняем текущий crontab
-crontab -l 2>/dev/null > /tmp/cron_backup.$$ || true
-
-# Добавляем недостающие строки
-UPDATED=0
+# Добавляем новые задачи, если их ещё нет
 for script in "${FILES[@]}"; do
-  [[ $script == send_telegram.sh ]] && continue
-  ENTRY="${PERIOD[$script]} bash $INSTALL_DIR/$script"
-  grep -F "$ENTRY" /tmp/cron_backup.$$ >/dev/null || {
-    echo "$ENTRY" >> /tmp/cron_backup.$$
-    UPDATED=1
-  }
+  [[ "$script" == "send_telegram.sh" ]] && continue
+
+  case "$script" in
+    check_smart.sh) CRON_EXPR="60 * * * *" ;;  # 1 раз в час
+    *) CRON_EXPR="*/5 * * * *" ;;              # каждые 5 минут
+  esac
+
+  ENTRY="$CRON_EXPR bash $INSTALL_DIR/$script"
+
+  if ! grep -Fq "$ENTRY" "$TMP_CRON"; then
+    echo "$ENTRY" >> "$TMP_CRON"
+    echo "➕ Added: $ENTRY"
+  else
+    echo "✅ Already exists: $ENTRY"
+  fi
 done
 
-[[ $UPDATED -eq 1 ]] && crontab /tmp/cron_backup.$$
-
-rm /tmp/cron_backup.$$     # чистим за собой
-
-echo "✅ Installation complete."
+# Обновляем crontab
+crontab "$TMP_CRON"
+rm "$TMP_CRON"
+echo "✅ Installation and crontab update complete."
