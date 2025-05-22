@@ -2,6 +2,7 @@
 set -e
 
 # === Конфигурация ===
+CONFIG_FILE="$INSTALL_DIR/config.ini"
 INSTALL_DIR="${1:-/root/scripts/monitoring}"
 RAW_BASE="https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring"
 FILES=(check_disk.sh check_ram.sh check_cpu.sh check_iowait.sh check_uptime.sh check_raid.sh check_temp.sh check_swap.sh check_smart.sh send_telegram.sh)
@@ -20,6 +21,17 @@ for f in "${FILES[@]}"; do
   curl -fsSL "$RAW_BASE/$f" -o "$f"
   chmod +x "$f"
 done
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "📝 Creating config.ini..."
+    cat <<EOF > "$CONFIG_FILE"
+[telegram]
+TOKEN=
+CHAT_ID=
+EOF
+else
+    echo "🔧 config.ini already exists, skipping creation."
+fi
 
 # === Настройка crontab ===
 echo "🛠 Updating crontab..."
