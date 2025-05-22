@@ -40,6 +40,9 @@ TMP_CRON=$(mktemp)
 # Получаем текущие задачи и удаляем все, связанные с monitoring
 crontab -l 2>/dev/null | grep -v "$INSTALL_DIR" | grep -v "install_monitoring.sh" > "$TMP_CRON" || true
 
+# Добавляем комментарий перед блоком заданий мониторинга
+echo "# https://github.com/darksmoke/Scripts/tree/main/Linux/monitoring" >> "$TMP_CRON"
+
 # Добавляем задачи для скриптов
 for script in "${FILES[@]}"; do
   [[ "$script" == "send_telegram.sh" ]] && continue
