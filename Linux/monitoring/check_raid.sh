@@ -8,7 +8,10 @@ if command -v mdadm &> /dev/null; then
   if echo "$STATUS" | grep -q '_'; then
     HOST=$(hostname)
     TIME=$(date '+%Y-%m-%d %H:%M:%S')
-    MSG="⚠️ *$HOST*\n🕒 $TIME\nRAID в состоянии DEGRADED:\n\`\`\`\n$STATUS\n\`\`\`"
+    MSG="⚠️ *$HOST*
+    🕒 $TIME
+    RAID в состоянии DEGRADED:
+    \`\`\`$STATUS\`\`\`"
     send_telegram "$MSG"
   fi
 fi
