@@ -10,6 +10,8 @@ LIMIT=$((CORES * THRESHOLD))
 if [[ $LOAD -gt $LIMIT ]]; then
   HOST=$(hostname)
   TIME=$(date '+%Y-%m-%d %H:%M:%S')
-  MSG="⚠️ *$HOST*\n🕒 $TIME\nCPU перегружен: loadavg=$LOAD%, ядер=$CORES"
+  MSG="⚠️ *$HOST*
+  🕒 $TIME
+  CPU перегружен: loadavg=$LOAD%, ядер=$CORES"
   send_telegram "$MSG"
 fi
