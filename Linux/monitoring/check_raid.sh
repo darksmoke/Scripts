@@ -1,6 +1,7 @@
 #!/bin/bash
-CONFIG_FILE="config.ini"
-source send_telegram.sh
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+source "$SCRIPT_DIR/send_telegram.sh"
+source "$SCRIPT_DIR/config.ini"
 
 if command -v mdadm &> /dev/null; then
   STATUS=$(cat /proc/mdstat | grep -E '\[.*U.*\]' || true)
