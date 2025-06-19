@@ -1,8 +1,8 @@
 #!/bin/bash
 # v2
-
-CONFIG_FILE="config.ini"
-source "$(dirname "$0")/send_telegram.sh"
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+source "$SCRIPT_DIR/send_telegram.sh"
+source "$SCRIPT_DIR/config.ini"
 
 THRESHOLD=5.0  # Порог в %
 
