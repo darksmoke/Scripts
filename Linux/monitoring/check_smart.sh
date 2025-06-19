@@ -2,6 +2,9 @@
 #
 # v.0.1
 #
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+source "$SCRIPT_DIR/send_telegram.sh"
+source "$SCRIPT_DIR/config.ini"
 
 CONFIG_FILE="config.ini"
 
