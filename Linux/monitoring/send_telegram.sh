@@ -2,6 +2,8 @@
 # send_telegram.sh
 # Загружается в каждый мониторинг-скрипт через `source`
 
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+source "$SCRIPT_DIR/config.ini"
 CONFIG_FILE="config.ini"
 
 TOKEN=$(grep -E '^TOKEN=' "$CONFIG_FILE" | cut -d'=' -f2)
