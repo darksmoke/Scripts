@@ -2,7 +2,7 @@
 #
 # Скрипт для проверки состояния программных RAID-массивов (mdadm)
 # и отправки уведомления в Telegram в случае проблем.
-# v.1.0
+# v.1.1
 #
 
 # Строгий режим: выход при ошибке, при использовании необъявленной переменной
@@ -10,28 +10,21 @@ set -euo pipefail
 
 # --- Инициализация ---
 
-# Определяем абсолютный путь к директории со скриптом
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-CONFIG_FILE="${SCRIPT_DIR}/config.ini"
+
+source "${SCRIPT_DIR}/config.ini"
+source "${SCRIPT_DIR}/secrets.ini"
+
+# Загружаем библиотеку отправки
+source "${SCRIPT_DIR}/send_telegram.sh"
+
+# --- Основная логика ---
 
 # Проверяем, существует ли mdadm в системе. Если нет, то и проверять нечего.
 if ! command -v mdadm &> /dev/null; then
     echo "INFO: Команда 'mdadm' не найдена. Проверка RAID не выполняется."
     exit 0
 fi
-
-# Проверяем наличие файла конфигурации
-if [[ ! -f "$CONFIG_FILE" ]]; then
-  echo "ОШИБКА: Файл конфигурации '${CONFIG_FILE}' не найден!" >&2
-  exit 1
-fi
-
-# Загружаем переменные из config.ini и библиотеку отправки
-source "$CONFIG_FILE"
-source "${SCRIPT_DIR}/send_telegram.sh"
-
-
-# --- Основная логика ---
 
 echo "Начало проверки состояния программных RAID-массивов..."
 
