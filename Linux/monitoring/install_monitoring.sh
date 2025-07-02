@@ -1,77 +1,135 @@
 #!/bin/bash
-set -e
+#
+# Скрипт для установки и настройки системы мониторинга.
+# v.1.0
+#
+set -euo pipefail
 
 # === Конфигурация ===
 INSTALL_DIR="${1:-/root/scripts/monitoring}"
-CONFIG_FILE="$INSTALL_DIR/config.ini"
 RAW_BASE="https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring"
-FILES=(check_disk.sh check_ram.sh check_cpu.sh check_iowait.sh check_uptime.sh check_raid.sh check_temp.sh check_swap.sh check_smart.sh send_telegram.sh)
+# Список скриптов для скачивания (без файлов конфигурации)
+SCRIPTS=(
+    send_telegram.sh check_cpu.sh check_ram.sh check_disk.sh
+    check_iowait.sh check_uptime.sh check_raid.sh check_temp.sh
+    check_swap.sh check_smart.sh
+)
 
-echo "📁 Target directory: $INSTALL_DIR"
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
+# === Функции ===
 
-echo "📦 Installing required packages..."
-apt update -y
-apt install -y curl wget git smartmontools lm-sensors util-linux mdadm bc sysstat
+install_packages() {
+    echo "📦 Установка необходимых пакетов..."
+    # Обновляем список пакетов только если это не делалось недавно
+    if [ -z "$(find /var/lib/apt/lists -maxdepth 1 -mmin -60 -type f)" ]; then
+        apt-get update -y
+    fi
+    apt-get install -y curl smartmontools lm-sensors mdadm bc sysstat
+}
 
-echo "⬇️  Downloading monitoring scripts..."
-for f in "${FILES[@]}"; do
-  echo "   - $f"
-  curl -fsSL "$RAW_BASE/$f" -o "$f"
-  chmod +x "$f"
-done
+download_scripts() {
+    echo "⬇️  Загрузка скриптов мониторинга в ${INSTALL_DIR}..."
+    mkdir -p "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
 
-if [[ ! -f "$CONFIG_FILE" ]]; then
-    echo "📝 Creating config.ini..."
-    cat <<EOF > "$CONFIG_FILE"
-[telegram]
-TOKEN=
-CHAT_ID=
+    for script in "${SCRIPTS[@]}"; do
+        echo "   - ${script}"
+        curl -fsSL "${RAW_BASE}/${script}" -o "${script}"
+        chmod +x "${script}"
+    done
+}
+
+create_config_files() {
+    # --- Создание config.ini с настройками по умолчанию ---
+    if [[ ! -f "${INSTALL_DIR}/config.ini" ]]; then
+        echo "📝 Создание файла конфигурации config.ini..."
+        cat <<'EOF' > "${INSTALL_DIR}/config.ini"
+#
+# Файл конфигурации для скриптов мониторинга (не секретные данные)
+#
+
+# --- Пороги для оповещений ---
+CPU_THRESHOLD_PERCENT=80
+DISK_FREE_SPACE_THRESHOLD=10
+IO_WAIT_THRESHOLD=5.0
+RAM_AVAILABLE_THRESHOLD_PERCENT=10
+SWAP_USAGE_THRESHOLD_PERCENT=60
+UPTIME_ALERT_THRESHOLD_MINUTES=60
+
+# --- Пороги температуры ---
+TEMP_THRESHOLD_WARNING=80
+TEMP_THRESHOLD_CRITICAL=95
+
+# --- Настройки проверки S.M.A.R.T. ---
+SMART_REALLOCATED_SECTOR_CT=5
+SMART_PENDING_SECTOR_CT=0
+SMART_UNCORRECTABLE_SECTOR_CT=0
+SMART_COMMAND_TIMEOUT=0
+
+# --- Списки исключений ---
+DISK_EXCLUDE_LIST="tmpfs devtmpfs squashfs"
 EOF
-else
-    echo "🔧 config.ini already exists, skipping creation."
-fi
+    else
+        echo "🔧 Файл config.ini уже существует, создание пропущено."
+    fi
 
-# === Настройка crontab ===
-echo "🛠 Updating crontab..."
-TMP_CRON=$(mktemp)
+    # --- Создание secrets.ini для токенов ---
+    if [[ ! -f "${INSTALL_DIR}/secrets.ini" ]]; then
+        echo "🔑 Создание файла для секретных данных secrets.ini..."
+        cat <<'EOF' > "${INSTALL_DIR}/secrets.ini"
+#
+# ВНИМАНИЕ! Этот файл содержит секретные данные.
+# Укажите ваш токен и ID чата Telegram.
+#
+BOT_TOKEN=""
+CHAT_ID=""
+EOF
+    else
+        echo "🔑 Файл secrets.ini уже существует, создание пропущено."
+    fi
+}
 
-# Получаем текущие задачи и удаляем все, связанные с monitoring
-crontab -l 2>/dev/null | grep -v "$INSTALL_DIR" | grep -v "install_monitoring.sh" > "$TMP_CRON" || true
+setup_cron() {
+    echo "🛠️  Настройка crontab..."
+    local tmp_cron
+    tmp_cron=$(mktemp)
+    
+    # Получаем текущие задачи и удаляем все, связанные с нашим мониторингом
+    crontab -l 2>/dev/null | grep -v "${INSTALL_DIR}" > "$tmp_cron" || true
 
-# Добавляем комментарий перед блоком заданий мониторинга
-echo "# https://github.com/darksmoke/Scripts/tree/main/Linux/monitoring" >> "$TMP_CRON"
+    # Добавляем блок заданий мониторинга
+    echo "" >> "$tmp_cron"
+    echo "# --- Блок заданий мониторинга (${INSTALL_DIR}) ---" >> "$tmp_cron"
+    
+    local cron_expr
+    for script in "${SCRIPTS[@]}"; do
+        [[ "$script" == "send_telegram.sh" ]] && continue
+        
+        # Назначаем разное время выполнения для разных скриптов
+        case "$script" in
+            check_smart.sh|check_raid.sh) cron_expr="10 * * * *" ;; # Раз в час
+            check_uptime.sh) cron_expr="* * * * *" ;;               # Каждую минуту
+            *) cron_expr="*/5 * * * *" ;;                           # Каждые 5 минут
+        esac
+        
+        echo "${cron_expr} bash ${INSTALL_DIR}/${script}" >> "$tmp_cron"
+    done
+    echo "# --- Конец блока заданий мониторинга ---" >> "$tmp_cron"
 
-# Добавляем задачи для скриптов
-for script in "${FILES[@]}"; do
-  [[ "$script" == "send_telegram.sh" ]] && continue
+    crontab "$tmp_cron"
+    rm "$tmp_cron"
+    echo "✅ Crontab успешно обновлён."
+}
 
-  case "$script" in
-    check_smart.sh) CRON_EXPR="0 * * * *" ;;  # 1 раз в час
-    *) CRON_EXPR="*/5 * * * *" ;;              # каждые 5 минут
-  esac
+# === Основная логика ===
+main() {
+    install_packages
+    download_scripts
+    create_config_files
+    setup_cron
 
-  ENTRY="$CRON_EXPR bash $INSTALL_DIR/$script"
+    echo -e "\n🎉 Установка завершена!"
+    echo -e "‼️ ВАЖНО: Отредактируйте файл \e[1;33m${INSTALL_DIR}/secrets.ini\e[0m и впишите ваши BOT_TOKEN и CHAT_ID."
+    echo "Для обновления скриптов в будущем, создайте и используйте скрипт update.sh (см. документацию)."
+}
 
-  if ! grep -Fq "$ENTRY" "$TMP_CRON"; then
-    echo "$ENTRY" >> "$TMP_CRON"
-    echo "➕ Added: $ENTRY"
-  else
-    echo "✅ Already exists: $ENTRY"
-  fi
-done
-
-# === Добавление автообновления ===
-UPDATE_ENTRY="0 3 * * * bash <(curl -s https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring/install_monitoring.sh)"
-if ! grep -Fq "$UPDATE_ENTRY" "$TMP_CRON"; then
-  echo "$UPDATE_ENTRY" >> "$TMP_CRON"
-  echo "🕒 Added daily auto-update: $UPDATE_ENTRY"
-else
-  echo "✅ Auto-update already scheduled."
-fi
-
-# Установка обновлённого crontab
-crontab "$TMP_CRON"
-rm "$TMP_CRON"
-echo "✅ Installation and crontab update complete."
+main "$@"
