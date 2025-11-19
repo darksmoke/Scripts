@@ -1,31 +1,32 @@
 #!/bin/bash
-# /opt/monitoring/check_ram.sh
+# /opt/monitoring/check_iowait.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 source "${SCRIPT_DIR}/utils.sh"
 source "${SCRIPT_DIR}/config.sh"
 
-check_dependency "free"
+check_dependency "iostat"
+check_dependency "bc"
 
 HOST=$(hostname)
 
-read -r TOTAL_MB AVAILABLE_MB <<< $(free -m | awk '/^Mem:/ {print $2, $7}')
+# Безопасное получение значения
+CURRENT_IOWAIT=$(LC_ALL=C iostat -c 2 2 | awk 'NF > 0 {last=$4} END {print last}')
 
-if [[ "$TOTAL_MB" -eq 0 ]]; then
-    log_msg "ERROR: RAM detection failed"
+if [[ -z "$CURRENT_IOWAIT" ]]; then
+    log_msg "ERROR: Failed to parse iostat"
     exit 1
 fi
 
-PERCENT_AVAILABLE=$(( 100 * AVAILABLE_MB / TOTAL_MB ))
-ALERT_ID="ram_low_memory"
+IS_OVERLOADED=$(echo "${CURRENT_IOWAIT} > ${IOWAIT_THRESHOLD}" | bc -l)
+ALERT_ID="disk_high_iowait"
 
-if (( PERCENT_AVAILABLE < RAM_THRESHOLD )); then
+if [[ "$IS_OVERLOADED" -eq 1 ]]; then
     MSG=$(cat <<EOF
-🧠 *Мало памяти (RAM): ${HOST}*
-📉 Свободно: ${PERCENT_AVAILABLE}% (${AVAILABLE_MB}MB)
-💾 Всего: ${TOTAL_MB}MB
-⛔ Порог: < ${RAM_THRESHOLD}%
+⚡️ *Высокий IO Wait: ${HOST}*
+📈 Текущий: \`${CURRENT_IOWAIT}%\`
+⛔ Порог: \`${IOWAIT_THRESHOLD}%\`
 EOF
 )
     manage_alert "$ALERT_ID" "ERROR" "$MSG"
