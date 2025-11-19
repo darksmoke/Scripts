@@ -6,39 +6,39 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 source "${SCRIPT_DIR}/utils.sh"
 source "${SCRIPT_DIR}/config.sh"
 
-# Проверяем наличие команды df
 check_dependency "df"
 
 HOST=$(hostname)
 
-# Получаем список ФС. Исключаем заголовки (tail) и фильтруем по типам/путям из конфига
-# Вывод df: Filesystem, Use%, Avail, Size, Mounted on, Type
+# Получаем список дисков
 df -h --output=source,pcent,avail,size,target,fstype | tail -n +2 | \
 grep -vE "${DISK_EXCLUDE_TYPE}" | grep -vE "${DISK_EXCLUDE_PATH}" | while read -r line; do
 
-    # Парсинг строки
     PERCENT_USED_STR=$(echo "$line" | awk '{print $2}')
     AVAIL=$(echo "$line" | awk '{print $3}')
-    SIZE=$(echo "$line" | awk '{print $4}')
     MOUNT=$(echo "$line" | awk '{print $5}')
     
-    # Удаляем %
+    # Создаем ID для алерта (заменяем слеши на подчеркивания)
+    # Пример: disk_boot_efi
+    ALERT_ID="disk_$(echo "$MOUNT" | tr '/' '_')"
+    
     PERCENT_USED=${PERCENT_USED_STR%\%}
     PERCENT_FREE=$((100 - PERCENT_USED))
 
-    # Проверка порога
     if (( PERCENT_FREE < DISK_THRESHOLD )); then
+        # Формируем текст
         MSG=$(cat <<EOF
-💽 *Low Disk Space: ${HOST}*
-
-💾 Path: \`${MOUNT}\`
-📉 Free: ${PERCENT_FREE}% (${AVAIL})
-💿 Total: ${SIZE}
-⛔ Threshold: < ${DISK_THRESHOLD}%
+💽 *Мало места: ${HOST}*
+💾 Раздел: \`${MOUNT}\`
+📉 Свободно: ${PERCENT_FREE}% (${AVAIL})
+⛔ Порог: < ${DISK_THRESHOLD}%
 EOF
 )
-        send_telegram "$MSG"
-        log_msg "ALERT: Disk space low on $MOUNT (${PERCENT_FREE}% free)"
+        # Вызываем менеджер алертов с флагом ERROR
+        manage_alert "$ALERT_ID" "ERROR" "$MSG"
+    else
+        # Вызываем менеджер с флагом OK (чтобы сбросить алерт, если он был)
+        manage_alert "$ALERT_ID" "OK" ""
     fi
 done
 
