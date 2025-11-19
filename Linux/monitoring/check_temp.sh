@@ -12,29 +12,29 @@ fi
 
 HOST=$(hostname)
 ALERTS=""
+HAS_ERROR=0
 
-# Парсинг вывода sensors (Имя: Температура)
 SENSORS_DATA=$(sensors | sed -n -E 's/^(.*[^[:space:]]):\s+\+([0-9.]+).*/\1:\2/p')
 
 while IFS=':' read -r NAME TEMP; do
-    TEMP_INT=${TEMP%.*} # Отбрасываем дробную часть
-
-    if (( TEMP_INT >= TEMP_CRITICAL )); then
-        ALERTS+="🔥 *${NAME}:* \`${TEMP}°C\` (Crit: ${TEMP_CRITICAL})\n"
-    elif (( TEMP_INT >= TEMP_WARNING )); then
-        ALERTS+="⚠️ *${NAME}:* \`${TEMP}°C\` (Warn: ${TEMP_WARNING})\n"
+    TEMP_INT=${TEMP%.*} 
+    if (( TEMP_INT >= TEMP_WARNING )); then
+        ALERTS+="🔥 *${NAME}:* \`${TEMP}°C\` (Warn: ${TEMP_WARNING})\n"
+        HAS_ERROR=1
     fi
 done <<< "$SENSORS_DATA"
 
-if [[ -n "$ALERTS" ]]; then
-    MSG=$(cat <<EOF
-🌡️ *Temperature Alert: ${HOST}*
+ALERT_ID="system_temperature"
 
+if [[ "$HAS_ERROR" -eq 1 ]]; then
+    MSG=$(cat <<EOF
+🌡️ *Перегрев сервера: ${HOST}*
 ${ALERTS}
 EOF
 )
-    send_telegram "$MSG"
-    log_msg "ALERT: High temperature detected."
+    manage_alert "$ALERT_ID" "ERROR" "$MSG"
+else
+    manage_alert "$ALERT_ID" "OK" ""
 fi
 
 exit 0
