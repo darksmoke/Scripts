@@ -7,25 +7,20 @@ source "${SCRIPT_DIR}/utils.sh"
 source "${SCRIPT_DIR}/config.sh"
 
 HOST=$(hostname)
-
-# Получаем uptime в минутах
 UPTIME_MIN=$(awk '{print int($1/60)}' /proc/uptime)
+ALERT_ID="system_reboot"
 
-# Если uptime меньше порога (например, 60 минут)
 if (( UPTIME_MIN < UPTIME_MIN_MINUTES )); then
     MSG=$(cat <<EOF
-🔄 *System Reboot Detected: ${HOST}*
-
-⏱️ Uptime: ${UPTIME_MIN} min
-⛔ Threshold: < ${UPTIME_MIN_MINUTES} min
-
-Server was rebooted recently.
+🔄 *Обнаружена перезагрузка: ${HOST}*
+⏱️ Uptime: ${UPTIME_MIN} мин
+⛔ Порог: < ${UPTIME_MIN_MINUTES} мин
 EOF
 )
-    # Доп. проверка: отправлять, только если не отправляли недавно (через lock файл),
-    # но для простоты оставим прямую отправку (скрипт должен запускаться реже или нужна защита от спама).
-    send_telegram "$MSG"
-    log_msg "ALERT: System Reboot detected (Uptime: ${UPTIME_MIN}m)"
+    manage_alert "$ALERT_ID" "ERROR" "$MSG"
+else
+    # Если аптайм стал больше порога, сообщаем о стабилизации (один раз, и удаляем лок)
+    manage_alert "$ALERT_ID" "OK" ""
 fi
 
 exit 0
