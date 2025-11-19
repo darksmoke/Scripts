@@ -42,5 +42,6 @@ A lightweight, modular set of Bash scripts for monitoring Linux server health me
 *(Replace URL with your actual repository URL)*
 
 ```bash
-curl -s [https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring/install.sh](https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring/install.sh))
+curl -s https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring/install.sh | bash
+```
 
