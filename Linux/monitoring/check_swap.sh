@@ -12,24 +12,24 @@ HOST=$(hostname)
 
 read -r TOTAL_SWAP USED_SWAP <<< $(free -m | awk '/^Swap:/ {print $2, $3}')
 
-# Если свопа нет
 if (( TOTAL_SWAP == 0 )); then
     exit 0
 fi
 
 PERCENT_USED=$(( 100 * USED_SWAP / TOTAL_SWAP ))
+ALERT_ID="swap_high_usage"
 
 if (( PERCENT_USED > SWAP_THRESHOLD )); then
     MSG=$(cat <<EOF
-🔂 *High SWAP Usage: ${HOST}*
-
-📈 Used: ${PERCENT_USED}% (${USED_SWAP}MB)
-💾 Total: ${TOTAL_SWAP}MB
-⛔ Threshold: > ${SWAP_THRESHOLD}%
+🔂 *Заполнен SWAP: ${HOST}*
+📈 Занято: ${PERCENT_USED}% (${USED_SWAP}MB)
+💾 Всего: ${TOTAL_SWAP}MB
+⛔ Порог: > ${SWAP_THRESHOLD}%
 EOF
 )
-    send_telegram "$MSG"
-    log_msg "ALERT: High SWAP usage (${PERCENT_USED}%)"
+    manage_alert "$ALERT_ID" "ERROR" "$MSG"
+else
+    manage_alert "$ALERT_ID" "OK" ""
 fi
 
 exit 0
