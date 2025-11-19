@@ -28,3 +28,8 @@ DISK_EXCLUDE_PATH="/snap|/run"
 # --- Настройки SMART ---
 SMART_REALLOCATED_LIMIT=5
 SMART_PENDING_LIMIT=0
+
+# Период повторного уведомления (в секундах). 3600 = 1 час.
+ALERT_MUTE_PERIOD=3600
+# Папка для хранения состояний
+STATE_DIR="/tmp/monitoring_state"
