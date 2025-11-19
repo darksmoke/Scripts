@@ -4,7 +4,22 @@ set -euo pipefail
 
 INSTALL_DIR="/opt/monitoring"
 REPO_URL="https://raw.githubusercontent.com/darksmoke/Scripts/main/Linux/monitoring"
-SCRIPTS=("config.sh" "utils.sh" "check_cpu.sh" "check_disk.sh" "check_ram.sh" "check_smart.sh" "update.sh")
+
+# Полный список файлов для скачивания
+SCRIPTS=(
+    "config.sh"
+    "utils.sh"
+    "check_cpu.sh"
+    "check_disk.sh"
+    "check_ram.sh"
+    "check_smart.sh"
+    "check_iowait.sh"
+    "check_uptime.sh"
+    "check_raid.sh"
+    "check_temp.sh"
+    "check_swap.sh"
+    "update.sh"
+)
 
 # 1. Подготовка директории
 echo "📂 Создание директории ${INSTALL_DIR}..."
@@ -19,17 +34,25 @@ elif [ -f /etc/redhat-release ]; then
     yum install -y curl smartmontools lm-sensors mdadm bc sysstat jq > /dev/null
 fi
 
-# 3. Скачивание скриптов (ВНИМАНИЕ: тут нужна логика скачивания или копирования)
-# Если скрипт запускается из git-репозитория локально:
-cp ./*.sh "$INSTALL_DIR/"
-chmod +x "$INSTALL_DIR"/*.sh
-# Убираем +x с конфигов
-chmod -x "$INSTALL_DIR/config.sh" "$INSTALL_DIR/utils.sh"
+# 3. Скачивание скриптов
+echo "⬇️ Скачивание файлов с GitHub..."
+for file in "${SCRIPTS[@]}"; do
+    echo "   - $file"
+    if curl -fsSL "${REPO_URL}/${file}" -o "${INSTALL_DIR}/${file}"; then
+        # Делаем исполняемым
+        chmod +x "${INSTALL_DIR}/${file}"
+    else
+        echo "❌ Ошибка скачивания ${file}"
+        exit 1
+    fi
+done
+
+# Убираем флаг исполнения с библиотек и конфигов
+chmod -x "${INSTALL_DIR}/config.sh" "${INSTALL_DIR}/utils.sh"
 
 # 4. Настройка Cron (SYSTEM WIDE)
 echo "⏰ Настройка Cron через /etc/cron.d/monitoring..."
 
-# Создаем файл задания. Указываем пользователя root явно.
 cat <<EOF > /etc/cron.d/monitoring
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
@@ -42,6 +65,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 */5 * * * * root $INSTALL_DIR/check_ram.sh
 */5 * * * * root $INSTALL_DIR/check_disk.sh
 */5 * * * * root $INSTALL_DIR/check_iowait.sh
+*/5 * * * * root $INSTALL_DIR/check_uptime.sh
+*/5 * * * * root $INSTALL_DIR/check_swap.sh
+*/5 * * * * root $INSTALL_DIR/check_temp.sh
 
 # Редкие проверки (раз в час)
 15 * * * * root $INSTALL_DIR/check_smart.sh
@@ -49,4 +75,5 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 EOF
 
 chmod 644 /etc/cron.d/monitoring
-echo "✅ Установка завершена. Конфиг: ${INSTALL_DIR}/config.sh"
+echo "✅ Установка завершена!"
+echo "📝 Не забудь настроить конфиг: nano ${INSTALL_DIR}/config.sh"
