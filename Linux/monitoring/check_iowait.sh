@@ -11,12 +11,21 @@ check_dependency "bc"
 
 HOST=$(hostname)
 
-# Берем второй отчет iostat (первый - это среднее с момента загрузки)
-# awk '{print $4}' обычно соответствует %iowait в стандартном выводе, но лучше проверять заголовки.
-# Для простоты оставляем $4, так как это стандарт для iostat -c.
-CURRENT_IOWAIT=$(LC_ALL=C iostat -c 2 2 | tail -n 1 | awk '{print $4}')
+# 1. Получаем значение
+# NF > 0 : обрабатываем только строки, где есть данные (исключаем пустые)
+# {last=$4} : запоминаем 4-ю колонку (обычно %iowait)
+# END {print last} : выводим последнее запомненное значение (из второго отчета iostat)
+CURRENT_IOWAIT=$(LC_ALL=C iostat -c 2 2 | awk 'NF > 0 {last=$4} END {print last}')
 
-# Сравнение Float через bc
+# 2. ВАЖНО: Проверка на сбой получения данных
+if [[ -z "$CURRENT_IOWAIT" ]]; then
+    # Пишем в лог, что мониторинг сломался
+    log_msg "ERROR: Failed to parse iostat output. Variable is empty."
+    # Завершаем работу с кодом ошибки, не пытаясь считать математику
+    exit 1
+fi
+
+# 3. Математика (выполняется только если данные получены)
 IS_OVERLOADED=$(echo "${CURRENT_IOWAIT} > ${IOWAIT_THRESHOLD}" | bc -l)
 
 if [[ "$IS_OVERLOADED" -eq 1 ]]; then
