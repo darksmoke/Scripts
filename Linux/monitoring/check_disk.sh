@@ -1,96 +1,45 @@
 #!/bin/bash
-#
-# Скрипт для проверки свободного места на дисках и отправки уведомления в Telegram.
-# v.1.1
-#
+# /opt/monitoring/check_disk.sh
+set -uo pipefail
 
-# Строгий режим: выход при ошибке, при использовании необъявленной переменной
-set -euo pipefail
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "${SCRIPT_DIR}/utils.sh"
+source "${SCRIPT_DIR}/config.sh"
 
-# --- Инициализация ---
-
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-
-source "${SCRIPT_DIR}/config.ini"
-source "${SCRIPT_DIR}/secrets.ini"
-
-# Загружаем библиотеку отправки
-source "${SCRIPT_DIR}/send_telegram.sh"
-
-# --- Основная логика ---
-
-echo "Начало проверки свободного места на дисках..."
-echo "Порог свободного места: ${DISK_FREE_SPACE_THRESHOLD}%"
-echo "Исключения: ${DISK_EXCLUDE_LIST}"
+# Проверяем наличие команды df
+check_dependency "df"
 
 HOST=$(hostname)
 
-# Используем df с кастомным выводом для надежности и простоты парсинга.
-# --output=source,pcent,avail,size,target,fstype
-# pcent - процент использования (с символом %)
-# avail - доступно в байтах
-# size - общий размер в байтах
-# target - точка монтирования
-# fstype - тип файловой системы
-# --local - показывать только локальные файловые системы
-df --local --output=pcent,avail,size,target,fstype | tail -n +2 | while read -r line; do
-  
-  # Разбираем строку на переменные
-  PERCENT_USED_STR=$(echo "$line" | awk '{print $1}')
-  AVAIL_KB=$(echo "$line" | awk '{print $2}')
-  SIZE_KB=$(echo "$line" | awk '{print $3}')
-  MOUNT_POINT=$(echo "$line" | awk '{print $4}')
-  FS_TYPE=$(echo "$line" | awk '{print $5}')
-  
-  # Удаляем символ '%' из процентов
-  PERCENT_USED=${PERCENT_USED_STR//%}
-  
-  # --- Проверка исключений ---
-  IS_EXCLUDED=false
-  for excluded_item in $DISK_EXCLUDE_LIST; do
-    # Проверяем совпадение по типу ФС или по точке монтирования
-    if [[ "$FS_TYPE" == "$excluded_item" ]] || [[ "$MOUNT_POINT" == "$excluded_item" ]]; then
-      echo "  - [ИСКЛЮЧЕНО] Раздел ${MOUNT_POINT} (тип: ${FS_TYPE}) в списке исключений."
-      IS_EXCLUDED=true
-      break
-    fi
-  done
-  
-  if [[ "$IS_EXCLUDED" == true ]]; then
-    continue # Переходим к следующему разделу
-  fi
-  # --- Конец проверки исключений ---
-  
-  # Вычисляем процент свободного места
-  PERCENT_FREE=$((100 - PERCENT_USED))
-  
-  echo "  - Проверка раздела: ${MOUNT_POINT} | Использовано: ${PERCENT_USED}% | Свободно: ${PERCENT_FREE}%"
+# Получаем список ФС. Исключаем заголовки (tail) и фильтруем по типам/путям из конфига
+# Вывод df: Filesystem, Use%, Avail, Size, Mounted on, Type
+df -h --output=source,pcent,avail,size,target,fstype | tail -n +2 | \
+grep -vE "${DISK_EXCLUDE_TYPE}" | grep -vE "${DISK_EXCLUDE_PATH}" | while read -r line; do
 
-  # Сравниваем процент свободного места с порогом
-  if (( PERCENT_FREE < DISK_FREE_SPACE_THRESHOLD )); then
+    # Парсинг строки
+    PERCENT_USED_STR=$(echo "$line" | awk '{print $2}')
+    AVAIL=$(echo "$line" | awk '{print $3}')
+    SIZE=$(echo "$line" | awk '{print $4}')
+    MOUNT=$(echo "$line" | awk '{print $5}')
     
-    # Конвертируем килобайты в человекочитаемый формат для красивого сообщения
-    AVAIL_HUMAN=$(numfmt --to=iec-i --suffix=B --format="%.1f" "$AVAIL_KB")
-    SIZE_HUMAN=$(numfmt --to=iec-i --suffix=B --format="%.1f" "$SIZE_KB")
-    TIME=$(date '+%Y-%m-%d %H:%M:%S')
+    # Удаляем %
+    PERCENT_USED=${PERCENT_USED_STR%\%}
+    PERCENT_FREE=$((100 - PERCENT_USED))
 
-    MSG=$(cat <<EOF
-💽 *Критически мало места на диске: ${HOST}* 💽
+    # Проверка порога
+    if (( PERCENT_FREE < DISK_THRESHOLD )); then
+        MSG=$(cat <<EOF
+💽 *Low Disk Space: ${HOST}*
 
-🕒 *Время:* ${TIME}
-💾 *Раздел:* \`${MOUNT_POINT}\`
-📉 *Свободно:* ${PERCENT_FREE}% (${AVAIL_HUMAN})
-💿 *Общий размер:* ${SIZE_HUMAN}
-
-Пожалуйста, освободите место на диске.
+💾 Path: \`${MOUNT}\`
+📉 Free: ${PERCENT_FREE}% (${AVAIL})
+💿 Total: ${SIZE}
+⛔ Threshold: < ${DISK_THRESHOLD}%
 EOF
 )
-
-    echo "!!! ПРЕВЫШЕНИЕ ПОРОГА на ${MOUNT_POINT}. Отправка уведомления в Telegram..."
-    send_telegram "$MSG"
-    echo "Уведомление отправлено."
-  fi
+        send_telegram "$MSG"
+        log_msg "ALERT: Disk space low on $MOUNT (${PERCENT_FREE}% free)"
+    fi
 done
 
-echo "Проверка дискового пространства завершена."
 exit 0

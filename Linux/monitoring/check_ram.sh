@@ -1,65 +1,38 @@
 #!/bin/bash
-#
-# Скрипт для проверки доступной оперативной памяти (RAM)
-# и отправки уведомления в Telegram.
-# v.1.1
-#
+# /opt/monitoring/check_ram.sh
+set -uo pipefail
 
-# Строгий режим: выход при ошибке, при использовании необъявленной переменной
-set -euo pipefail
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "${SCRIPT_DIR}/utils.sh"
+source "${SCRIPT_DIR}/config.sh"
 
-# --- Инициализация ---
+check_dependency "free"
+check_dependency "awk"
 
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+HOST=$(hostname)
 
-source "${SCRIPT_DIR}/config.ini"
-source "${SCRIPT_DIR}/secrets.ini"
-
-# Загружаем библиотеку отправки
-source "${SCRIPT_DIR}/send_telegram.sh"
-
-# --- Основная логика ---
-
-echo "Начало проверки доступной оперативной памяти..."
-
-# Используем 'free -m' для получения данных в мегабайтах.
-# Парсим строку 'Mem:', извлекая общий объем (total) и доступный (available).
-# 'awk' позволяет сделать это в одну строку.
+# Получаем Total и Available
 read -r TOTAL_MB AVAILABLE_MB <<< $(free -m | awk '/^Mem:/ {print $2, $7}')
 
-# Рассчитываем процент доступной памяти
+if [[ "$TOTAL_MB" -eq 0 ]]; then
+    log_msg "ERROR: RAM detection failed (Total is 0)"
+    exit 1
+fi
+
+# Расчет процента доступной памяти
 PERCENT_AVAILABLE=$(( 100 * AVAILABLE_MB / TOTAL_MB ))
 
-echo "Данные для проверки:"
-echo "  - Всего RAM: ${TOTAL_MB}MB"
-echo "  - Доступно RAM: ${AVAILABLE_MB}MB (${PERCENT_AVAILABLE}%)"
-echo "  - Порог срабатывания: ${RAM_AVAILABLE_THRESHOLD_PERCENT}%"
+if (( PERCENT_AVAILABLE < RAM_THRESHOLD )); then
+    MSG=$(cat <<EOF
+🧠 *Low Memory Alert: ${HOST}*
 
-# Сравниваем процент доступной памяти с порогом
-if (( PERCENT_AVAILABLE < RAM_AVAILABLE_THRESHOLD_PERCENT )); then
-  # Памяти мало, формируем и отправляем сообщение
-  HOST=$(hostname)
-  TIME=$(date '+%Y-%m-%d %H:%M:%S')
-
-  MSG=$(cat <<EOF
-🧠 *Критически мало оперативной памяти на сервере: ${HOST}* 🧠
-
-🕒 *Время:* ${TIME}
-📉 *Доступно RAM:* ${PERCENT_AVAILABLE}% (${AVAILABLE_MB}MB)
-💾 *Всего RAM:* ${TOTAL_MB}MB
-📊 *Установленный порог:* ${RAM_AVAILABLE_THRESHOLD_PERCENT}%
-
-Системе может скоро не хватить памяти для новых процессов.
+📉 Free RAM: ${PERCENT_AVAILABLE}% (${AVAILABLE_MB}MB)
+💾 Total RAM: ${TOTAL_MB}MB
+⛔ Threshold: < ${RAM_THRESHOLD}%
 EOF
 )
-
-  echo "!!! НИЗКИЙ УРОВЕНЬ ПАМЯТИ! Отправка уведомления в Telegram..."
-  send_telegram "$MSG"
-  echo "Уведомление отправлено."
-
-else
-  # Памяти достаточно
-  echo "Уровень доступной памяти в норме."
+    send_telegram "$MSG"
+    log_msg "ALERT: Low RAM (${PERCENT_AVAILABLE}% free)"
 fi
 
 exit 0
