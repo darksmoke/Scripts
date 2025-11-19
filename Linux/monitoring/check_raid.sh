@@ -7,7 +7,6 @@ source "${SCRIPT_DIR}/utils.sh"
 source "${SCRIPT_DIR}/config.sh"
 
 if ! command -v mdadm &> /dev/null; then
-    # Тихо выходим, если нет mdadm, пишем в лог раз в сутки (опционально)
     exit 0
 fi
 
@@ -19,29 +18,30 @@ if [[ -z "$RAID_DEVICES" ]]; then
 fi
 
 PROBLEM_REPORTS=""
+HAS_ERROR=0
 
 for device in $RAID_DEVICES; do
-    # Получаем детальный статус
     DEVICE_STATUS=$(mdadm --detail "$device")
-    
-    # Ищем состояния НЕ clean и НЕ active
     PROBLEMS=$(echo "$DEVICE_STATUS" | grep 'State :' | grep -v -E 'clean|active$') || true
 
     if [[ -n "$PROBLEMS" ]]; then
         PROBLEM_REPORTS+="🔹 *Device:* \`${device}\`\n\`\`\`\n${PROBLEMS}\n\`\`\`\n"
+        HAS_ERROR=1
     fi
 done
 
-if [[ -n "$PROBLEM_REPORTS" ]]; then
-    MSG=$(cat <<EOF
-🚨 *RAID Issue Detected: ${HOST}*
+ALERT_ID="raid_health"
 
+if [[ "$HAS_ERROR" -eq 1 ]]; then
+    MSG=$(cat <<EOF
+🚨 *Проблемы с RAID: ${HOST}*
 ${PROBLEM_REPORTS}
-Check \`cat /proc/mdstat\` immediately!
+Проверьте \`cat /proc/mdstat\`
 EOF
 )
-    send_telegram "$MSG"
-    log_msg "ALERT: RAID issues detected."
+    manage_alert "$ALERT_ID" "ERROR" "$MSG"
+else
+    manage_alert "$ALERT_ID" "OK" ""
 fi
 
 exit 0
