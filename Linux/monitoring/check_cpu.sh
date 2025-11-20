@@ -22,9 +22,9 @@ ALERT_ID="cpu_high_load"
 if [[ "$IS_OVERLOADED" -eq 1 ]]; then
     MSG=$(cat <<EOF
 🔥 *Высокая нагрузка CPU: ${HOST}*
-⚙️ Ядер: ${CORES}
-📈 Load Avg (1m): \`${LOAD_AVG}\`
-⛔ Порог: \`${THRESHOLD_VAL}\` (> ${CPU_THRESHOLD}%)
+Ядер: ${CORES}
+Load Avg (1m): \`${LOAD_AVG}\`
+Порог: \`${THRESHOLD_VAL}\` (> ${CPU_THRESHOLD}%)
 EOF
 )
     manage_alert "$ALERT_ID" "ERROR" "$MSG"
