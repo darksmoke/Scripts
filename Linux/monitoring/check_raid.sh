@@ -11,6 +11,7 @@ if ! command -v mdadm &> /dev/null; then
 fi
 
 HOST=$(hostname)
+# Ищем активные массивы
 RAID_DEVICES=$(grep '^md' /proc/mdstat | awk '{print "/dev/"$1}') || true
 
 if [[ -z "$RAID_DEVICES" ]]; then
@@ -22,7 +23,11 @@ HAS_ERROR=0
 
 for device in $RAID_DEVICES; do
     DEVICE_STATUS=$(mdadm --detail "$device")
-    PROBLEMS=$(echo "$DEVICE_STATUS" | grep 'State :' | grep -v -E 'clean|active$') || true
+    
+    # ИСПРАВЛЕНИЕ: Добавили [[:space:]]* чтобы игнорировать пробелы в конце
+    # Логика: Исключаем строки, где статус ТОЛЬКО clean или active (с возможными пробелами).
+    # Если будет "active, degraded" - это не совпадет и попадет в PROBLEMS.
+    PROBLEMS=$(echo "$DEVICE_STATUS" | grep 'State :' | grep -v -E '(clean|active)[[:space:]]*$') || true
 
     if [[ -n "$PROBLEMS" ]]; then
         PROBLEM_REPORTS+="🔹 *Device:* \`${device}\`\n\`\`\`\n${PROBLEMS}\n\`\`\`\n"
