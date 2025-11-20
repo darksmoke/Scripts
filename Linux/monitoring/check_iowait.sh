@@ -30,10 +30,9 @@ IS_OVERLOADED=$(echo "${CURRENT_IOWAIT} > ${IOWAIT_THRESHOLD}" | bc -l)
 
 if [[ "$IS_OVERLOADED" -eq 1 ]]; then
     MSG=$(cat <<EOF
-⚡️ *High IO Wait: ${HOST}*
-
-📈 Current Wait: \`${CURRENT_IOWAIT}%\`
-⛔ Threshold: \`${IOWAIT_THRESHOLD}%\`
+*High IO Wait: ${HOST}*
+Current Wait: \`${CURRENT_IOWAIT}%\`
+Threshold: \`${IOWAIT_THRESHOLD}%\`
 
 Possible disk bottleneck.
 EOF
