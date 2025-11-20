@@ -13,8 +13,8 @@ ALERT_ID="system_reboot"
 if (( UPTIME_MIN < UPTIME_MIN_MINUTES )); then
     MSG=$(cat <<EOF
 🔄 *Обнаружена перезагрузка: ${HOST}*
-⏱️ Uptime: ${UPTIME_MIN} мин
-⛔ Порог: < ${UPTIME_MIN_MINUTES} мин
+Uptime: ${UPTIME_MIN} мин
+Порог: < ${UPTIME_MIN_MINUTES} мин
 EOF
 )
     manage_alert "$ALERT_ID" "ERROR" "$MSG"
