@@ -29,9 +29,9 @@ grep -vE "${DISK_EXCLUDE_TYPE}" | grep -vE "${DISK_EXCLUDE_PATH}" | while read -
         # Формируем текст
         MSG=$(cat <<EOF
 💽 *Мало места: ${HOST}*
-💾 Раздел: \`${MOUNT}\`
-📉 Свободно: ${PERCENT_FREE}% (${AVAIL})
-⛔ Порог: < ${DISK_THRESHOLD}%
+Раздел: \`${MOUNT}\`
+Свободно: ${PERCENT_FREE}% (${AVAIL})
+Порог: < ${DISK_THRESHOLD}%
 EOF
 )
         # Вызываем менеджер алертов с флагом ERROR
