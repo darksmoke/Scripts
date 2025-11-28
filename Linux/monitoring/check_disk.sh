@@ -28,7 +28,7 @@ grep -vE "${DISK_EXCLUDE_TYPE}" | grep -vE "${DISK_EXCLUDE_PATH}" | while read -
     if (( PERCENT_FREE < DISK_THRESHOLD )); then
         # Формируем текст
         MSG=$(cat <<EOF
-💽 *Мало места: ${HOST}*
+*Мало места: ${HOST}*
 Раздел: \`${MOUNT}\`
 Свободно: ${PERCENT_FREE}% (${AVAIL})
 Порог: < ${DISK_THRESHOLD}%
