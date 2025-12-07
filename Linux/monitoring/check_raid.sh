@@ -1,5 +1,6 @@
 #!/bin/bash
 # /opt/monitoring/check_raid.sh
+# v.1.2 - Added ignore for 'checking' state
 set -uo pipefail
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
@@ -11,7 +12,6 @@ if ! command -v mdadm &> /dev/null; then
 fi
 
 HOST=$(hostname)
-# Ищем активные массивы
 RAID_DEVICES=$(grep '^md' /proc/mdstat | awk '{print "/dev/"$1}') || true
 
 if [[ -z "$RAID_DEVICES" ]]; then
@@ -24,10 +24,8 @@ HAS_ERROR=0
 for device in $RAID_DEVICES; do
     DEVICE_STATUS=$(mdadm --detail "$device")
     
-    # ИСПРАВЛЕНИЕ: Добавили [[:space:]]* чтобы игнорировать пробелы в конце
-    # Логика: Исключаем строки, где статус ТОЛЬКО clean или active (с возможными пробелами).
-    # Если будет "active, degraded" - это не совпадет и попадет в PROBLEMS.
-    PROBLEMS=$(echo "$DEVICE_STATUS" | grep 'State :' | grep -v -E '(clean|active)[[:space:]]*$') || true
+    # Игнорируем штатные статусы: clean, active, а также процесс проверки (checking)
+    PROBLEMS=$(echo "$DEVICE_STATUS" | grep 'State :' | grep -v -E '(clean|active)(, checking)?[[:space:]]*$') || true
 
     if [[ -n "$PROBLEMS" ]]; then
         PROBLEM_REPORTS+="🔹 *Device:* \`${device}\`\n\`\`\`\n${PROBLEMS}\n\`\`\`\n"
