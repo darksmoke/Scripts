@@ -18,6 +18,7 @@ SCRIPTS=(
     "utils.sh"
     "check_cpu.sh"
     "check_disk.sh"
+    "check_qemu_agent.sh"
     "check_ram.sh"
     "check_smart.sh"
     "check_iowait.sh"
@@ -105,13 +106,14 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 */5 * * * * root /opt/monitoring/check_iowait.sh
 */5 * * * * root /opt/monitoring/check_swap.sh
 */5 * * * * root /opt/monitoring/check_temp.sh
-# Uptime проверяем каждые 10 минут
-*/10 * * * * root /opt/monitoring/check_uptime.sh
 
 # 3. Редкие проверки (Раз в час)
 # Разносим по времени, чтобы не грузить систему одновременно
 15 * * * * root /opt/monitoring/check_smart.sh
 20 * * * * root /opt/monitoring/check_raid.sh
+*/10 * * * * root /opt/monitoring/check_uptime.sh
+# Проверка QEMU агента в виртуалках (раз в сутки в 09:00 утра)
+0 9 * * * root /opt/monitoring/check_qemu_agent.sh
 EOF
 
 # Права на cron-файл (обязательно 644)
