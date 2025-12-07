@@ -1,6 +1,6 @@
 #!/bin/bash
 # /opt/monitoring/install.sh
-# v.1.3
+# v.1.4
 #
 # Скрипт установки системы мониторинга.
 # Реализует разделение настроек (config.sh + config_local.sh)
