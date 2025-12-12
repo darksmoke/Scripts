@@ -1,5 +1,6 @@
 #!/bin/bash
 # /opt/monitoring/check_iowait.sh
+# v.1.3 - Added Maintenance Window support
 set -uo pipefail
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
@@ -9,36 +10,55 @@ source "${SCRIPT_DIR}/config.sh"
 check_dependency "iostat"
 check_dependency "bc"
 
+# === БЛОК ПРОВЕРКИ MAINTENANCE ===
+# Если переменные заданы
+if [[ -n "${IOWAIT_MNT_START:-}" && -n "${IOWAIT_MNT_END:-}" ]]; then
+    # Получаем текущий час (10# принуждает использовать десятичную систему, чтобы 08 не считалось восьмеричным)
+    CURRENT_HOUR=$((10#$(date +%H)))
+    MNT_START=$((10#$IOWAIT_MNT_START))
+    MNT_END=$((10#$IOWAIT_MNT_END))
+
+    IS_MAINTENANCE=0
+
+    if (( MNT_START < MNT_END )); then
+        if (( CURRENT_HOUR >= MNT_START && CURRENT_HOUR < MNT_END )); then
+            IS_MAINTENANCE=1
+        fi
+    else
+        if (( CURRENT_HOUR >= MNT_START || CURRENT_HOUR < MNT_END )); then
+            IS_MAINTENANCE=1
+        fi
+    fi
+
+    if [[ "$IS_MAINTENANCE" -eq 1 ]]; then
+
+        exit 0
+    fi
+fi
+# =================================
+
 HOST=$(hostname)
 
-# 1. Получаем значение
-# NF > 0 : обрабатываем только строки, где есть данные (исключаем пустые)
-# {last=$4} : запоминаем 4-ю колонку (обычно %iowait)
-# END {print last} : выводим последнее запомненное значение (из второго отчета iostat)
 CURRENT_IOWAIT=$(LC_ALL=C iostat -c 2 2 | awk 'NF > 0 {last=$4} END {print last}')
 
-# 2. ВАЖНО: Проверка на сбой получения данных
 if [[ -z "$CURRENT_IOWAIT" ]]; then
-    # Пишем в лог, что мониторинг сломался
-    log_msg "ERROR: Failed to parse iostat output. Variable is empty."
-    # Завершаем работу с кодом ошибки, не пытаясь считать математику
+    log_msg "ERROR: Failed to parse iostat output."
     exit 1
 fi
 
-# 3. Математика (выполняется только если данные получены)
 IS_OVERLOADED=$(echo "${CURRENT_IOWAIT} > ${IOWAIT_THRESHOLD}" | bc -l)
+ALERT_ID="disk_high_iowait"
 
 if [[ "$IS_OVERLOADED" -eq 1 ]]; then
     MSG=$(cat <<EOF
-*High IO Wait: ${HOST}*
-Current Wait: \`${CURRENT_IOWAIT}%\`
-Threshold: \`${IOWAIT_THRESHOLD}%\`
-
-Possible disk bottleneck.
+️   *Высокий IO Wait: ${HOST}*
+   Текущий: \`${CURRENT_IOWAIT}%\`
+   Порог: \`${IOWAIT_THRESHOLD}%\`
 EOF
 )
-    send_telegram "$MSG"
-    log_msg "ALERT: High IO Wait (${CURRENT_IOWAIT}%)"
+    manage_alert "$ALERT_ID" "ERROR" "$MSG"
+else
+    manage_alert "$ALERT_ID" "OK" ""
 fi
 
 exit 0

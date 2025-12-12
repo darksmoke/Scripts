@@ -91,7 +91,7 @@ with pysftp.Connection(hostname, username=username, password=password) as sftp:
 
 
 time_format = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
-url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text=Скрипт выполнянлся: {time_format}"
+url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text=Скрипт выполнялся: {time_format}"
 requests.get(url).json()
 
 # Get info
