@@ -1,6 +1,6 @@
 #!/bin/bash
 # /opt/monitoring/install.sh
-# v.1.4
+# v.1.5
 #
 # Скрипт установки системы мониторинга.
 # Реализует разделение настроек (config.sh + config_local.sh)
@@ -27,6 +27,7 @@ SCRIPTS=(
     "check_temp.sh"
     "check_swap.sh"
     "update.sh"
+    "config_local.example"
 )
 
 # === 1. Подготовка директории ===
