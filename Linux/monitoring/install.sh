@@ -21,6 +21,7 @@ SCRIPTS=(
     "check_qemu_agent.sh"
     "check_ram.sh"
     "check_smart.sh"
+    "check_reboot.sh"
     "check_iowait.sh"
     "check_uptime.sh"
     "check_raid.sh"
