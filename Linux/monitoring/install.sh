@@ -116,6 +116,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 */10 * * * * root /opt/monitoring/check_uptime.sh
 # Проверка QEMU агента в виртуалках (раз в сутки в 09:00 утра)
 0 9 * * * root /opt/monitoring/check_qemu_agent.sh
+0 8 * * * root /opt/monitoring/check_reboot.sh
 EOF
 
 # Права на cron-файл (обязательно 644)
