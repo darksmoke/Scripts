@@ -34,6 +34,12 @@ DISK_EXCLUDE_PATH="/snap|/run"
 # --- Настройки SMART ---
 SMART_REALLOCATED_LIMIT=5
 SMART_PENDING_LIMIT=0
+# Порог износа NVMe (поле "Percentage Used" из SMART/Health лога), %
+SMART_NVME_PCT_USED_LIMIT=90
+# Глубина поиска в журнале (минуты) следов зависания/сброса контроллера диска.
+# Должна перекрывать интервал запуска check_smart.sh (по умолчанию раз в час)
+# с запасом, иначе часть инцидентов между запусками будет пропущена.
+SMART_LOOKBACK_MIN=65
 
 # --- Maintenance Window для IO Wait ---
 # Час начала и час окончания игнорирования (0-23).
