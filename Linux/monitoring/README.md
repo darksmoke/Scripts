@@ -32,7 +32,7 @@ A lightweight, modular set of Bash scripts for monitoring Linux server health me
 | **IO Wait** | Detects disk bottlenecks | Обнаружение проблем с дисковой подсистемой | Every 5 min |
 | **Temperature** | CPU/System temperature checks (`sensors`) | Проверка температуры компонентов | Every 5 min |
 | **SWAP** | Alerts on high SWAP usage | Уведомление при высоком использовании SWAP | Every 5 min |
-| **S.M.A.R.T.** | Checks physical disk health and critical attributes | Проверка здоровья дисков и критических атрибутов | Hourly |
+| **S.M.A.R.T.** | Checks physical disk health (HDD/SATA SSD/NVMe) and detects controller hangs/resets in the kernel log; the hang alert bypasses the maintenance window | Проверка здоровья дисков (HDD/SATA SSD/NVMe) и детект зависаний/сбросов контроллера по логу ядра; алерт о зависании не глушится окном обслуживания | Hourly |
 | **RAID** | Monitors Linux Software RAID (`mdadm`) status | Мониторинг состояния Software RAID (`mdadm`) | Hourly |
 | **Uptime** | Detects recent reboots | Оповещение о недавней перезагрузке сервера | Every 5 min |
 
