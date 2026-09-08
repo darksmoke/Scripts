@@ -38,8 +38,13 @@ chmod 750 "$INSTALL_DIR"
 
 # === 2. Установка зависимостей ===
 echo "📦 Установка системных пакетов..."
+# apt-get update может вернуть ненулевой код из-за одного протухшего/недоступного
+# репозитория (например, истёкший Release-файл security.debian.org на старых
+# релизах), хотя нужные пакеты обычно уже стоят или ставятся из других
+# репозиториев. Из-за set -e такая непринципиальная ошибка раньше обрывала
+# весь update.sh ещё до скачивания скриптов — теперь она не фатальна.
 if [ -f /etc/debian_version ]; then
-    apt-get update -qq >/dev/null 2>&1
+    apt-get update -qq >/dev/null 2>&1 || echo "⚠️  apt-get update завершился с ошибкой (возможно, протух один из репозиториев) — продолжаем"
     apt-get install -y curl smartmontools lm-sensors mdadm bc sysstat jq >/dev/null 2>&1
 elif [ -f /etc/redhat-release ]; then
     yum install -y curl smartmontools lm-sensors mdadm bc sysstat jq >/dev/null 2>&1
