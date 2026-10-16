@@ -1,6 +1,11 @@
 #!/bin/bash
 # /opt/monitoring/utils.sh
-# v.1.5 - Added Global Maintenance Window logic
+# v.1.6 - Telegram delivery check, token off the command line, LC_ALL=C
+
+# Вывод free/df/virsh/sensors локализуется: на сервере с ru_RU `free` пишет
+# "Подкачка:" вместо "Swap:", и парсинг молча ломается. Тексты алертов — это
+# строки самих скриптов, на них C-локаль не влияет.
+export LC_ALL=C
 
 source "$(dirname "$0")/config.sh"
 
@@ -21,17 +26,53 @@ log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
 }
 
+# Один запрос к Bot API. Печатает ответ Telegram.
+# URL с токеном передаётся curl через конфиг на stdin (-K -), а не аргументом:
+# аргументы процесса видны любому локальному пользователю в `ps`.
+# --data-urlencode, а не -d: иначе "&", "+", "%" в тексте алерта рвут/портят
+# сообщение.
+_telegram_request() {
+    local message="$1"
+    local parse_mode="$2"
+    local args=(--data-urlencode "chat_id=${CHAT_ID}" --data-urlencode "text=${message}")
+    [[ -n "$parse_mode" ]] && args+=(--data-urlencode "parse_mode=${parse_mode}")
+    printf 'url = "https://api.telegram.org/bot%s/sendMessage"\n' "$BOT_TOKEN" \
+        | curl -sS --max-time 10 -K - "${args[@]}" 2>&1
+}
+
+# Возвращает 0 только если Telegram подтвердил доставку ("ok":true).
 _send_telegram_raw() {
     local message="$1"
     if [[ -z "${BOT_TOKEN:-}" || -z "${CHAT_ID:-}" ]]; then
         log_msg "ERROR: Telegram credentials missing."
         return 1
     fi
-    curl -sS --max-time 10 \
-        -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-        -d chat_id="${CHAT_ID}" \
-        -d text="${message}" \
-        -d parse_mode="Markdown" > /dev/null
+
+    # Скрипты собирают отчёты через REPORT+="...\n" — в bash это буквальные
+    # два символа "\n", и Telegram показывал их как есть ("мин:\n\n15 19:22"),
+    # а после ``` съедал первое слово как "язык" блока кода.
+    message="${message//\\n/$'\n'}"
+
+    local resp
+    resp=$(_telegram_request "$message" "Markdown")
+    if echo "$resp" | grep -q '"ok":true'; then
+        return 0
+    fi
+
+    # Markdown ломается на непарном "_" или "*" из данных (имя ВМ, текст
+    # ошибки, строка журнала) — Telegram отвечает "can't parse entities" и
+    # сообщение не доставляется. Повторяем тем же текстом без разметки:
+    # некрасиво, но алерт дойдёт.
+    if echo "$resp" | grep -q "can't parse entities"; then
+        resp=$(_telegram_request "$message" "")
+        if echo "$resp" | grep -q '"ok":true'; then
+            log_msg "WARN: Markdown rejected by Telegram, sent as plain text."
+            return 0
+        fi
+    fi
+
+    log_msg "ERROR: Telegram send failed: $(echo "$resp" | tr -d '\n' | cut -c1-300)"
+    return 1
 }
 
 # Функция проверки: находимся ли мы сейчас в окне обслуживания?
@@ -56,6 +97,9 @@ is_maintenance_now() {
     return 1 # False
 }
 
+# Lock-файл создаётся/обновляется/удаляется только после подтверждённой
+# доставки: если Telegram недоступен или отклонил сообщение, следующий запуск
+# попробует снова, а не посчитает алерт отправленным.
 manage_alert() {
     local ALERT_ID="$1"
     local STATUS="$2"
@@ -86,28 +130,31 @@ manage_alert() {
             local DIFF=$((CURRENT_TIME - LAST_ALERT_TIME))
 
             if (( DIFF > ALERT_MUTE_PERIOD )); then
-                _send_telegram_raw "🔁 *Напоминание:* Проблема сохраняется!
-$MSG_TEXT"
-                echo "$CURRENT_TIME" > "$STATE_FILE"
-                log_msg "REMINDER SENT: $ALERT_ID"
+                if _send_telegram_raw "🔁 *Напоминание:* Проблема сохраняется!
+$MSG_TEXT"; then
+                    echo "$CURRENT_TIME" > "$STATE_FILE"
+                    log_msg "REMINDER SENT: $ALERT_ID"
+                fi
             else
                 log_msg "MUTE: $ALERT_ID (Too soon to repeat)"
             fi
         else
-            _send_telegram_raw "🔥 *Проблема обнаружена:*
-$MSG_TEXT"
-            date +%s > "$STATE_FILE"
-            log_msg "NEW ALERT SENT: $ALERT_ID"
+            if _send_telegram_raw "🔥 *Проблема обнаружена:*
+$MSG_TEXT"; then
+                date +%s > "$STATE_FILE"
+                log_msg "NEW ALERT SENT: $ALERT_ID"
+            fi
         fi
 
     elif [[ "$STATUS" == "OK" ]]; then
         if [[ -f "$STATE_FILE" ]]; then
             local HOST
             HOST=$(hostname)
-            _send_telegram_raw "✅ *Восстановление (${HOST}):*
-Проблема с *${ALERT_ID}* решена."
-            rm -f "$STATE_FILE"
-            log_msg "RECOVERY SENT: $ALERT_ID"
+            if _send_telegram_raw "✅ *Восстановление (${HOST}):*
+Проблема \`${ALERT_ID}\` решена."; then
+                rm -f "$STATE_FILE"
+                log_msg "RECOVERY SENT: $ALERT_ID"
+            fi
         fi
     fi
 }

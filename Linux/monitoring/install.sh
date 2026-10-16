@@ -1,6 +1,6 @@
 #!/bin/bash
 # /opt/monitoring/install.sh
-# v.1.5
+# v.1.6 - atomic update, flock/timeout in cron
 #
 # Скрипт установки системы мониторинга.
 # Реализует разделение настроек (config.sh + config_local.sh)
@@ -51,16 +51,30 @@ elif [ -f /etc/redhat-release ]; then
 fi
 
 # === 3. Скачивание скриптов ===
+# Сначала всё во временный каталог и проверка синтаксиса, и только потом
+# подмена через mv (атомарно, в пределах одной ФС). Раньше curl писал прямо
+# поверх рабочих файлов: обрыв посреди скачивания оставлял, например,
+# недокачанный utils.sh — и молча ломались ВСЕ проверки до следующего обновления.
 echo "⬇️ Скачивание файлов с GitHub..."
 
+STAGING_DIR=$(mktemp -d "${INSTALL_DIR}/.staging.XXXXXX")
+trap 'rm -rf "$STAGING_DIR"' EXIT
+
 for file in "${SCRIPTS[@]}"; do
-    echo "   - Обновление: ${file}"
-    if curl -fsSL "${REPO_URL}/${file}" -o "${INSTALL_DIR}/${file}"; then
-        chmod +x "${INSTALL_DIR}/${file}"
-    else
-        echo "❌ Ошибка скачивания ${file}. Проверьте URL или интернет."
+    echo "   - Скачивание: ${file}"
+    if ! curl -fsSL --max-time 60 "${REPO_URL}/${file}" -o "${STAGING_DIR}/${file}"; then
+        echo "❌ Ошибка скачивания ${file}. Рабочие файлы НЕ изменены."
         exit 1
     fi
+    if [[ "$file" == *.sh ]] && ! bash -n "${STAGING_DIR}/${file}"; then
+        echo "❌ Синтаксическая ошибка в ${file}. Рабочие файлы НЕ изменены."
+        exit 1
+    fi
+done
+
+for file in "${SCRIPTS[@]}"; do
+    chmod +x "${STAGING_DIR}/${file}"
+    mv -f "${STAGING_DIR}/${file}" "${INSTALL_DIR}/${file}"
 done
 
 # Снимаем флаг исполнения с библиотек (их не нужно запускать напрямую)
@@ -99,29 +113,33 @@ fi
 # === 5. Настройка Cron (System-wide) ===
 echo "⏰ Настройка задач Cron (/etc/cron.d/monitoring)..."
 
+# flock -n: если прошлый запуск ещё висит (например, df на зависшем NFS),
+# новый не стартует — без этого cron каждые 5 минут плодил новые процессы.
+# timeout: жёсткий потолок времени работы проверки.
+L="flock -n /run/lock/monitoring"
 cat <<EOF > /etc/cron.d/monitoring
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 # 1. Автообновление скриптов (Раз в сутки в 04:00)
-0 4 * * * root /opt/monitoring/update.sh >> /var/log/monitoring_update.log 2>&1
+0 4 * * * root ${L}_update.lock timeout 1800 /opt/monitoring/update.sh >> /var/log/monitoring_update.log 2>&1
 
 # 2. Частые проверки (Каждые 5 минут)
-*/5 * * * * root /opt/monitoring/check_cpu.sh
-*/5 * * * * root /opt/monitoring/check_ram.sh
-*/5 * * * * root /opt/monitoring/check_disk.sh
-*/5 * * * * root /opt/monitoring/check_iowait.sh
-*/5 * * * * root /opt/monitoring/check_swap.sh
-*/5 * * * * root /opt/monitoring/check_temp.sh
+*/5 * * * * root ${L}_cpu.lock timeout 240 /opt/monitoring/check_cpu.sh
+*/5 * * * * root ${L}_ram.lock timeout 240 /opt/monitoring/check_ram.sh
+*/5 * * * * root ${L}_disk.lock timeout 240 /opt/monitoring/check_disk.sh
+*/5 * * * * root ${L}_iowait.lock timeout 240 /opt/monitoring/check_iowait.sh
+*/5 * * * * root ${L}_swap.lock timeout 240 /opt/monitoring/check_swap.sh
+*/5 * * * * root ${L}_temp.lock timeout 240 /opt/monitoring/check_temp.sh
 
 # 3. Редкие проверки (Раз в 5 часов / раз в час)
 # Разносим по времени, чтобы не грузить систему одновременно
-15 */5 * * * root /opt/monitoring/check_smart.sh
-20 * * * * root /opt/monitoring/check_raid.sh
-*/10 * * * * root /opt/monitoring/check_uptime.sh
+15 */5 * * * root ${L}_smart.lock timeout 3000 /opt/monitoring/check_smart.sh
+20 * * * * root ${L}_raid.lock timeout 600 /opt/monitoring/check_raid.sh
+*/10 * * * * root ${L}_uptime.lock timeout 240 /opt/monitoring/check_uptime.sh
 # Проверка QEMU агента в виртуалках (раз в сутки в 09:00 утра)
-0 9 * * * root /opt/monitoring/check_qemu_agent.sh
-0 8 * * * root /opt/monitoring/check_reboot.sh
+0 9 * * * root ${L}_qemu.lock timeout 600 /opt/monitoring/check_qemu_agent.sh
+0 8 * * * root ${L}_reboot.lock timeout 240 /opt/monitoring/check_reboot.sh
 EOF
 
 # Права на cron-файл (обязательно 644)

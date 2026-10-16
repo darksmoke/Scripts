@@ -1,5 +1,6 @@
 #!/bin/bash
 # /opt/monitoring/check_cpu.sh
+# v.1.1 - Load Average за 5 минут вместо 1 (меньше ложных алертов на всплесках)
 set -uo pipefail
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
@@ -10,7 +11,7 @@ check_dependency "bc"
 
 HOST=$(hostname)
 CORES=$(nproc)
-LOAD_AVG=$(awk '{print $1}' /proc/loadavg)
+LOAD_AVG=$(awk '{print $2}' /proc/loadavg)
 # Расчет порога
 THRESHOLD_VAL=$(echo "scale=2; ${CORES} * ${CPU_THRESHOLD} / 100" | bc)
 
@@ -23,7 +24,7 @@ if [[ "$IS_OVERLOADED" -eq 1 ]]; then
     MSG=$(cat <<EOF
 🔥 *Высокая нагрузка CPU: ${HOST}*
 Ядер: ${CORES}
-Load Avg (1m): \`${LOAD_AVG}\`
+Load Avg (5m): \`${LOAD_AVG}\`
 Порог: \`${THRESHOLD_VAL}\` (> ${CPU_THRESHOLD}%)
 EOF
 )

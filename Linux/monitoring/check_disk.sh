@@ -1,5 +1,6 @@
 #!/bin/bash
 # /opt/monitoring/check_disk.sh
+# v.1.1 - df timeout, inode check, exact exclusions, safe parsing
 set -uo pipefail
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
@@ -10,35 +11,74 @@ check_dependency "df"
 
 HOST=$(hostname)
 
-# Получаем список дисков
-df -h --output=source,pcent,avail,size,target,fstype | tail -n +2 | \
-grep -vE "${DISK_EXCLUDE_TYPE}" | grep -vE "${DISK_EXCLUDE_PATH}" | while read -r line; do
+# df на зависшем сетевом монтировании (NFS/CIFS) висит бесконечно — без
+# таймаута проверка молча не работала бы вообще.
+DF_OUT=$(timeout 60 df -h --output=source,pcent,ipcent,avail,fstype,target 2>/dev/null)
+DF_RC=$?
+if (( DF_RC == 124 )); then
+    MSG=$(cat <<EOF
+*df не ответил за 60 с: ${HOST}*
+Вероятно, зависло сетевое монтирование (NFS/CIFS). Место на дисках не проверено.
+EOF
+)
+    manage_alert "disk_df_timeout" "ERROR" "$MSG"
+    exit 0
+fi
+manage_alert "disk_df_timeout" "OK" ""
 
-    PERCENT_USED_STR=$(echo "$line" | awk '{print $2}')
-    AVAIL=$(echo "$line" | awk '{print $3}')
-    MOUNT=$(echo "$line" | awk '{print $5}')
-    
+# Исключения сравниваем с конкретными полями, а не со всей строкой:
+# раньше "/snap" выкидывал и /tank/snapshots, а тип "overlay" — любую
+# строку, где это слово встречалось.
+echo "$DF_OUT" | tail -n +2 | while read -r SRC PCENT IPCENT AVAIL FSTYPE MOUNT; do
+
+    [[ -z "${MOUNT:-}" ]] && continue
+    [[ "$FSTYPE" =~ ^(${DISK_EXCLUDE_TYPE})$ ]] && continue
+    [[ "$MOUNT" =~ ^(${DISK_EXCLUDE_PATH})(/|$) ]] && continue
+
     # Создаем ID для алерта (заменяем слеши на подчеркивания)
     # Пример: disk_boot_efi
-    ALERT_ID="disk_$(echo "$MOUNT" | tr '/' '_')"
-    
-    PERCENT_USED=${PERCENT_USED_STR%\%}
-    PERCENT_FREE=$((100 - PERCENT_USED))
+    MOUNT_ID=$(printf '%s' "$MOUNT" | tr -c 'A-Za-z0-9' '_')
+    ALERT_ID="disk_${MOUNT_ID}"
 
-    if (( PERCENT_FREE < DISK_THRESHOLD )); then
-        # Формируем текст
-        MSG=$(cat <<EOF
+    # У части ФС df выдаёт "-" вместо процента — такие пропускаем, а не
+    # роняем цикл арифметической ошибкой.
+    PERCENT_USED=${PCENT%\%}
+    if [[ "$PERCENT_USED" =~ ^[0-9]+$ ]]; then
+        PERCENT_FREE=$((100 - PERCENT_USED))
+
+        if (( PERCENT_FREE < DISK_THRESHOLD )); then
+            MSG=$(cat <<EOF
 *Мало места: ${HOST}*
 Раздел: \`${MOUNT}\`
 Свободно: ${PERCENT_FREE}% (${AVAIL})
 Порог: < ${DISK_THRESHOLD}%
 EOF
 )
-        # Вызываем менеджер алертов с флагом ERROR
-        manage_alert "$ALERT_ID" "ERROR" "$MSG"
-    else
-        # Вызываем менеджер с флагом OK (чтобы сбросить алерт, если он был)
-        manage_alert "$ALERT_ID" "OK" ""
+            manage_alert "$ALERT_ID" "ERROR" "$MSG"
+        else
+            manage_alert "$ALERT_ID" "OK" ""
+        fi
+    fi
+
+    # Закончившиеся inode: место есть, а файлы создать нельзя.
+    # Порог тот же, что и для места. У ФС без фиксированных inode
+    # (btrfs, vfat, zfs) df выдаёт "-" — пропускаем.
+    INODE_USED=${IPCENT%\%}
+    if [[ "$INODE_USED" =~ ^[0-9]+$ ]]; then
+        INODE_FREE=$((100 - INODE_USED))
+
+        if (( INODE_FREE < DISK_THRESHOLD )); then
+            MSG=$(cat <<EOF
+*Заканчиваются inode: ${HOST}*
+Раздел: \`${MOUNT}\`
+Свободно inode: ${INODE_FREE}%
+Порог: < ${DISK_THRESHOLD}%
+EOF
+)
+            manage_alert "inode_${MOUNT_ID}" "ERROR" "$MSG"
+        else
+            manage_alert "inode_${MOUNT_ID}" "OK" ""
+        fi
     fi
 done
 

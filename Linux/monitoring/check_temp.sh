@@ -1,5 +1,6 @@
 #!/bin/bash
 # /opt/monitoring/check_temp.sh
+# v.1.1 - только температурные строки, TEMP_CRITICAL, лог при пустом sensors
 set -uo pipefail
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
@@ -14,11 +15,23 @@ HOST=$(hostname)
 ALERTS=""
 HAS_ERROR=0
 
-SENSORS_DATA=$(sensors | sed -n -E 's/^(.*[^[:space:]]):\s+\+([0-9.]+).*/\1:\2/p')
+# Берём только строки с температурой: "+35.0°C" (UTF-8) или "+35.0 C" (C-локаль).
+# Раньше под регулярку попадали и напряжения ("in0: +1.20 V").
+SENSORS_DATA=$(sensors 2>/dev/null | sed -n -E 's/^(.*[^[:space:]]):[[:space:]]+\+([0-9.]+)[^0-9A-Za-z ]*[ ]?C([[:space:]]|$).*/\1:\2/p')
+
+if [[ -z "$SENSORS_DATA" ]]; then
+    # Не алерт: на ВМ датчиков нет штатно. Но в логе видно, что проверка
+    # ничего не проверяет (на железе — запустить sensors-detect).
+    log_msg "WARN: sensors returned no temperature readings"
+    exit 0
+fi
 
 while IFS=':' read -r NAME TEMP; do
-    TEMP_INT=${TEMP%.*} 
-    if (( TEMP_INT >= TEMP_WARNING )); then
+    TEMP_INT=${TEMP%.*}
+    if (( TEMP_INT >= TEMP_CRITICAL )); then
+        ALERTS+="🆘 *${NAME}:* \`${TEMP}°C\` (Crit: ${TEMP_CRITICAL})\n"
+        HAS_ERROR=1
+    elif (( TEMP_INT >= TEMP_WARNING )); then
         ALERTS+="🔥 *${NAME}:* \`${TEMP}°C\` (Warn: ${TEMP_WARNING})\n"
         HAS_ERROR=1
     fi

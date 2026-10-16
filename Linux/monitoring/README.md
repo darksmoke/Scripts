@@ -26,15 +26,17 @@ A lightweight, modular set of Bash scripts for monitoring Linux server health me
 
 | Feature | Description (EN) | Описание (RU) | Cron Schedule |
 | :--- | :--- | :--- | :--- |
-| **CPU Load** | Checks 1-min Load Average based on core count | Проверка Load Average (1 мин) с учетом кол-ва ядер | Every 5 min |
-| **RAM Usage** | Alerts if free RAM is low | Уведомление, если свободной RAM мало | Every 5 min |
-| **Disk Space** | Monitors specific filesystems, excludes snaps/tmpfs | Мониторинг места, исключая snap/tmpfs | Every 5 min |
+| **CPU Load** | Checks 5-min Load Average based on core count | Проверка Load Average (5 мин) с учетом кол-ва ядер | Every 5 min |
+| **RAM Usage** | Alerts if available RAM (`MemAvailable`) is low | Уведомление, если доступной RAM (`MemAvailable`) мало | Every 5 min |
+| **Disk Space** | Free space and inodes per filesystem, excludes snaps/tmpfs; alerts if `df` hangs (stale NFS) | Свободное место и inode, исключая snap/tmpfs; алерт, если `df` завис (NFS) | Every 5 min |
 | **IO Wait** | Detects disk bottlenecks | Обнаружение проблем с дисковой подсистемой | Every 5 min |
 | **Temperature** | CPU/System temperature checks (`sensors`) | Проверка температуры компонентов | Every 5 min |
 | **SWAP** | Alerts on high SWAP usage | Уведомление при высоком использовании SWAP | Every 5 min |
-| **S.M.A.R.T.** | Checks physical disk health (HDD/SATA SSD/NVMe) and detects controller hangs/resets in the kernel log; the hang alert bypasses the maintenance window | Проверка здоровья дисков (HDD/SATA SSD/NVMe) и детект зависаний/сбросов контроллера по логу ядра; алерт о зависании не глушится окном обслуживания | Every 5h |
+| **S.M.A.R.T.** | Disk health for HDD/SATA SSD/SAS/NVMe and disks behind HW-RAID (`smartctl --scan-open`), SSD wear, error counter growth; per-device controller hang/reset detection in the kernel log; the hang alert bypasses the maintenance window | Здоровье дисков HDD/SATA SSD/SAS/NVMe и за HW-RAID, износ SSD, рост счётчиков ошибок; детект зависаний/сбросов по логу ядра для каждого диска; алерт о зависании не глушится окном обслуживания | Every 5h |
 | **RAID** | Monitors Linux Software RAID (`mdadm`) status | Мониторинг состояния Software RAID (`mdadm`) | Hourly |
-| **Uptime** | Detects recent reboots | Оповещение о недавней перезагрузке сервера | Every 5 min |
+| **Uptime** | Detects recent reboots | Оповещение о недавней перезагрузке сервера | Every 10 min |
+| **Reboot required** | `/var/run/reboot-required` or running kernel older than installed | Требуется перезагрузка: флаг или запущенное ядро старше установленного | Daily 08:00 |
+| **QEMU Agent** | Guest agent responds in running VMs (libvirt) | Отвечает ли guest agent в запущенных ВМ (libvirt) | Daily 09:00 |
 
 ## 🛠 Installation / Установка
 
