@@ -45,9 +45,20 @@ echo "📦 Установка системных пакетов..."
 # весь update.sh ещё до скачивания скриптов — теперь она не фатальна.
 if [ -f /etc/debian_version ]; then
     apt-get update -qq >/dev/null 2>&1 || echo "⚠️  apt-get update завершился с ошибкой (возможно, протух один из репозиториев) — продолжаем"
-    apt-get install -y curl smartmontools lm-sensors mdadm bc sysstat jq >/dev/null 2>&1
+    # Ошибка установки по-прежнему прерывает обновление, но теперь с понятной
+    # причиной в выводе: update.sh перешлёт её в Telegram (ночью из cron
+    # иначе никто не узнает, что сервер застрял на старой версии).
+    if ! PKG_OUT=$(apt-get install -y curl smartmontools lm-sensors mdadm bc sysstat jq 2>&1); then
+        echo "❌ Не удалось установить пакеты (apt-get install):"
+        echo "$PKG_OUT" | tail -n 3
+        exit 1
+    fi
 elif [ -f /etc/redhat-release ]; then
-    yum install -y curl smartmontools lm-sensors mdadm bc sysstat jq >/dev/null 2>&1
+    if ! PKG_OUT=$(yum install -y curl smartmontools lm-sensors mdadm bc sysstat jq 2>&1); then
+        echo "❌ Не удалось установить пакеты (yum install):"
+        echo "$PKG_OUT" | tail -n 3
+        exit 1
+    fi
 fi
 
 # === 3. Скачивание скриптов ===
@@ -145,7 +156,23 @@ EOF
 # Права на cron-файл (обязательно 644)
 chmod 644 /etc/cron.d/monitoring
 
-# === 6. Финиш ===
+# === 6. Ротация логов ===
+# Без неё логи росли бесконечно (MUTE-строка каждые 5 минут на каждый
+# активный алерт). Скрипты пишут через >>, поэтому copytruncate не нужен.
+echo "🗂 Настройка ротации логов (/etc/logrotate.d/monitoring)..."
+cat <<'EOF' > /etc/logrotate.d/monitoring
+/var/log/monitoring.log /var/log/monitoring_update.log {
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+}
+EOF
+chmod 644 /etc/logrotate.d/monitoring
+
+# === 7. Финиш ===
 echo "🎉 Установка завершена!"
 echo "---------------------------------------------------"
 if [[ -z "$(grep 'BOT_TOKEN=""' "$LOCAL_CONF")" ]]; then
