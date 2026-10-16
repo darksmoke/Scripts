@@ -88,6 +88,14 @@ while read -r dev _ dtype _; do
     DEVICES+=("${dev}|${dtype}")
 done < <(timeout 60 smartctl --scan-open 2>/dev/null)
 
+# Старые smartctl (до 7.x) могут не показывать NVMe в --scan-open, хотя
+# SATA-диски показывают — тогда NVMe молча выпал бы из проверки.
+for ctrl in /sys/class/nvme/nvme*; do
+    [[ -e "$ctrl" ]] || continue
+    name=$(basename "$ctrl")
+    printf '%s\n' "${DEVICES[@]:-}" | grep -qE "^/dev/${name}(n[0-9]+)?\|" || DEVICES+=("/dev/${name}|nvme")
+done
+
 # Фолбэк для старых smartctl без --scan-open: невыемные блочные диски,
 # кроме виртуальных/программных, у которых SMART не бывает.
 if [[ ${#DEVICES[@]} -eq 0 ]]; then

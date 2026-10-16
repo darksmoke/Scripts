@@ -53,6 +53,20 @@ _send_telegram_raw() {
     # а после ``` съедал первое слово как "язык" блока кода.
     message="${message//\\n/$'\n'}"
 
+    # Лимит Telegram — 4096 символов; длиннее (напр. журнал ядра по многим
+    # дискам) сообщение отклоняется целиком. Режем по байтам с запасом
+    # (LC_ALL=C) и через iconv -c убираем обрубленный UTF-8 символ.
+    if (( ${#message} > 3800 )); then
+        local cut
+        cut=$(printf '%s' "$message" | head -c 3800)
+        if command -v iconv &> /dev/null; then
+            # iconv -c возвращает 1, когда что-то выкинул, — это ожидаемо
+            cut=$(printf '%s' "$cut" | iconv -f UTF-8 -t UTF-8 -c 2>/dev/null)
+        fi
+        message="${cut}
+…(сообщение обрезано, подробности на сервере)"
+    fi
+
     local resp
     resp=$(_telegram_request "$message" "Markdown")
     if echo "$resp" | grep -q '"ok":true'; then

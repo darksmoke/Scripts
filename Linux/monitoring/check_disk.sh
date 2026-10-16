@@ -32,12 +32,15 @@ manage_alert "disk_df_timeout" "OK" ""
 echo "$DF_OUT" | tail -n +2 | while read -r SRC PCENT IPCENT AVAIL FSTYPE MOUNT; do
 
     [[ -z "${MOUNT:-}" ]] && continue
-    [[ "$FSTYPE" =~ ^(${DISK_EXCLUDE_TYPE})$ ]] && continue
+    # Тип — по началу имени ("fuse" исключает и fuse.sshfs), путь — по
+    # началу пути ("/run" исключает /run/user/..., но не /tank/run).
+    [[ "$FSTYPE" =~ ^(${DISK_EXCLUDE_TYPE}) ]] && continue
     [[ "$MOUNT" =~ ^(${DISK_EXCLUDE_PATH})(/|$) ]] && continue
 
     # Создаем ID для алерта (заменяем слеши на подчеркивания)
-    # Пример: disk_boot_efi
-    MOUNT_ID=$(printf '%s' "$MOUNT" | tr -c 'A-Za-z0-9' '_')
+    # Пример: disk_boot_efi. Схема как раньше — чтобы активные алерты
+    # после обновления корректно закрылись, а не зависли под старым ID.
+    MOUNT_ID=$(echo "$MOUNT" | tr '/' '_')
     ALERT_ID="disk_${MOUNT_ID}"
 
     # У части ФС df выдаёт "-" вместо процента — такие пропускаем, а не

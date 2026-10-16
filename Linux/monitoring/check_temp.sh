@@ -22,9 +22,14 @@ SENSORS_DATA=$(sensors 2>/dev/null | sed -n -E 's/^(.*[^[:space:]]):[[:space:]]+
 if [[ -z "$SENSORS_DATA" ]]; then
     # Не алерт: на ВМ датчиков нет штатно. Но в логе видно, что проверка
     # ничего не проверяет (на железе — запустить sensors-detect).
-    log_msg "WARN: sensors returned no temperature readings"
+    # Пишем один раз, а не каждые 5 минут.
+    if [[ ! -f "${STATE_DIR}/sensors_empty.flag" ]]; then
+        log_msg "WARN: sensors returned no temperature readings"
+        touch "${STATE_DIR}/sensors_empty.flag"
+    fi
     exit 0
 fi
+rm -f "${STATE_DIR}/sensors_empty.flag"
 
 while IFS=':' read -r NAME TEMP; do
     TEMP_INT=${TEMP%.*}

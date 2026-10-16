@@ -27,7 +27,11 @@ fi
 # дополнительно сравниваем запущенное ядро с самым новым в /boot.
 RUNNING=$(uname -r)
 NEWEST=$(ls /boot/vmlinuz-* 2>/dev/null | sed 's#^/boot/vmlinuz-##' | grep -v rescue | sort -V | tail -1)
-if [[ -n "$NEWEST" && "$NEWEST" != "$RUNNING" ]]; then
+# Алерт только если установленное ядро НОВЕЕ запущенного (а не просто
+# отличается): иначе ложный вечный алерт там, где ядро грузится не из /boot
+# или старые ядра уже удалены.
+HIGHEST=$(printf '%s\n%s\n' "$RUNNING" "$NEWEST" | sort -V | tail -1)
+if [[ -n "$NEWEST" && "$NEWEST" != "$RUNNING" && "$HIGHEST" == "$NEWEST" ]]; then
     REASONS+="*Ядро:* запущено \`${RUNNING}\`, установлено \`${NEWEST}\`\n"
 fi
 
