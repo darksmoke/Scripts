@@ -14,7 +14,9 @@ CHAT_ID=""
 # --- Глобальные пути ---
 INSTALL_DIR="/opt/monitoring"
 LOG_FILE="/var/log/monitoring.log"
-STATE_DIR="/tmp/monitoring_state"
+# Не в /tmp: root пишет/удаляет здесь lock-файлы, а предсказуемый путь в
+# общедоступном /tmp позволяет локальному пользователю подложить симлинки.
+STATE_DIR="/var/lib/monitoring/state"
 
 # --- Пороги (Thresholds) - DEFAULTS ---
 CPU_THRESHOLD=80
@@ -34,8 +36,12 @@ DISK_EXCLUDE_PATH="/snap|/run"
 # --- Настройки SMART ---
 SMART_REALLOCATED_LIMIT=5
 SMART_PENDING_LIMIT=0
-# Порог износа NVMe (поле "Percentage Used" из SMART/Health лога), %
-SMART_NVME_PCT_USED_LIMIT=90
+# Порог износа SSD/NVMe, % израсходованного ресурса (NVMe "Percentage Used",
+# у SATA SSD — 100 минус нормализованное значение wear-атрибута)
+SMART_WEAR_LIMIT=90
+# Исключить устройства из SMART-проверки (regex по "устройство тип модель серийник"),
+# например виртуальный том HW-RAID, у которого SMART нет: "^/dev/sda scsi"
+SMART_EXCLUDE_REGEX=""
 # Глубина поиска в журнале (минуты) следов зависания/сброса контроллера диска.
 # Должна перекрывать интервал запуска check_smart.sh (по умолчанию раз в 5
 # часов = 300 мин) с запасом, иначе часть инцидентов между запусками будет

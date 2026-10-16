@@ -4,7 +4,18 @@
 
 source "$(dirname "$0")/config.sh"
 
-mkdir -p "$STATE_DIR"
+mkdir -p "$STATE_DIR" && chmod 700 "$STATE_DIR"
+
+# Однократный перенос активных алертов из старого /tmp/monitoring_state, чтобы
+# после обновления они не пришли повторно как новые. Переносим только если
+# каталог настоящий (не симлинк) и принадлежит root, и только обычные файлы.
+OLD_STATE_DIR="/tmp/monitoring_state"
+if [[ "$STATE_DIR" != "$OLD_STATE_DIR" && -d "$OLD_STATE_DIR" && ! -L "$OLD_STATE_DIR" \
+      && "$(stat -c %u "$OLD_STATE_DIR" 2>/dev/null)" == "0" ]]; then
+    find "$OLD_STATE_DIR" -maxdepth 1 -type f -name '*.lock' -user root \
+        -exec mv -n -t "$STATE_DIR" {} + 2>/dev/null
+    rm -rf "$OLD_STATE_DIR"
+fi
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"

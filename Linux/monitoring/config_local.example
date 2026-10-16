@@ -79,6 +79,8 @@ CHAT_ID="-200223..."
 # SMART: Лимиты ошибок дисков
 # SMART_REALLOCATED_LIMIT=5
 # SMART_PENDING_LIMIT=0
+# SMART_WEAR_LIMIT=90                  # % износа SSD/NVMe
+# SMART_EXCLUDE_REGEX="^/dev/sda scsi" # исключить устройство (напр. том HW-RAID)
 
 # QEMU AGENT: Фильтр имен виртуальных машин
 # Оставьте пустым, чтобы проверять все. Впишите "win", чтобы искать только *win*.
